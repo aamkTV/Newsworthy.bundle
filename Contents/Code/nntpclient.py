@@ -70,7 +70,7 @@ class nntpClient(nntpObj):
     funcName = '[nntpClient.nntpClient.get_article]'
     Thread.AcquireLock(self.lock)
     try:
-      log(6, funcName, "Downloading article '%s'", article_obj.article_id)
+      log(7, funcName, "Downloading article", article_obj.article_id)
       self.send_command('body <%s>', article_obj.article_id)
     
       lines = []

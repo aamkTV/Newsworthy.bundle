@@ -26,17 +26,25 @@ def performLogin(nzbService, forceRetry=False):
     #Try the login to newzbin
     #x = HTTP.Request("http://www.newzbin.com/", encoding="latin1")
     
-    x = HTTP.Request("http://www.newzbin.com/search?fpn=p", values, encoding="latin1")
-    if x and (x.content.count("Log Out") > 0 or x.content.count("days left") > 0):
-      log(2,funcName, "Logged into Newzbin")
-      return True
-    else:
-      log(2,funcName, "Login to Newzbin failed.")
+    try:
+      x = HTTP.Request("http://www.newzbin.com/search?fpn=p", values, encoding="latin1")
+      if x and (x.content.count("Log Out") > 0 or x.content.count("days left") > 0):
+        log(2,funcName, "Logged into Newzbin")
+        return True
+      else:
+        log(2,funcName, "Login to Newzbin failed.")
+        return False
+    except Ex.URLError:
+      log(4, funcName, Ex.URLError)
+      return False
+    except:
+      log(1, funcName, "Error logging in.")
       return False
   else:
     log(2,funcName, "No username and/or password.")
     return False
 
+      
 ####################################################################################################
 def supportsGenres():
   return True
@@ -122,7 +130,7 @@ def downloadNZBUrl(nzbID):
 ####################################################################################################
 def getArticleSummary(newzbinID):
   #global articleDict
-  postHTML = XML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, True, errors="ignore")
+  postHTML = HTML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, errors="ignore")
   postSummary = ''
   includeSummaryDetails = True
   warningXML = postHTML.xpath('//div[@class="warning"]')
@@ -167,8 +175,8 @@ def getTVVideoFilters():
 
   videoFilter = ""
   # Check which TV Formats to include
-  ShowHD = Prefs.Get('ShowHDTV')
-  ShowSD = Prefs.Get('ShowSDTV')
+  ShowHD = Prefs['ShowHDTV']
+  ShowSD = Prefs['ShowSDTV']
   log(3, funcName + "ShowSDTV: " + str(ShowSD) + " and ShowHDTV: " + str(ShowHD))
 
   # We are only covering the use cases where someone wants to intentionally filter by HD/SD content.
@@ -192,11 +200,11 @@ def getMovieVideoFilters():
   MovieFormat = ""
 
   #Check which formats to include
-  ShowNonHD = Prefs.Get('ShowNonHDMovies')
-  Show720p = Prefs.Get('Show720pMovies')
-  Show1080i = Prefs.Get('Show1080iMovies')
-  Show1080p = Prefs.Get('Show1080pMovies')
-  ShowBluRay = Prefs.Get('ShowBluRayMovies')
+  ShowNonHD = Prefs['ShowNonHDMovies']
+  Show720p = Prefs['Show720pMovies']
+  Show1080i = Prefs['Show1080iMovies']
+  Show1080p = Prefs['Show1080pMovies']
+  #ShowBluRay = Prefs['ShowBluRayMovies']
 
   # Easy use case: All formats to be displayed, no more processing needed
   if (ShowNonHD and Show720p and Show1080i and Show1080p and ShowBluRay):
@@ -208,7 +216,7 @@ def getMovieVideoFilters():
   Attr720p = "a:VideoF~720p"
   Attr1080p = "a:VideoF~1080p"
   Attr1080i = "a:VideoF~1080i"
-  AttrBluRay = "a:VideoF~Blu-Ray"
+  #AttrBluRay = "a:VideoF~Blu-Ray"
 
   listOfIncludes = []
   listOfExcludes = []
@@ -229,10 +237,10 @@ def getMovieVideoFilters():
   else:
     listOfExcludes.append(Attr1080p)
 
-  if (ShowBluRay):
-    listOfIncludes.append(AttrBluRay)
-  else:
-    listOfExcludes.append(AttrBluRay)
+#   if (ShowBluRay):
+#     listOfIncludes.append(AttrBluRay)
+#   else:
+#     listOfExcludes.append(AttrBluRay)
 
   log(4, funcName + "Selected movie video formats: " + str(listOfIncludes))
   log(4, funcName + "Excluded movie video formats: " + str(listOfExcludes))

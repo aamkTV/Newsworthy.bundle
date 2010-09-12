@@ -31,7 +31,7 @@ class nntpObj(object):
 	def nntpConnections(self):
 		return getConfigValue(theDict=nntpConfigDict, key='nntpConnections')
 
-
+@route('/video/newzworthy/configure')
 def configure(sender):
 	funcName = "[configuration.configure]"
 	

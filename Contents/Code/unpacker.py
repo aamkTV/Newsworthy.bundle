@@ -1,5 +1,7 @@
 class Unpacker(object):
   def __init__(self, item):
+    funcName = "[Unpacker.__init__]"
+    log(6, funcName, 'Unpacker started')
     self.item = item
     self.parts = []
     self.complete = False

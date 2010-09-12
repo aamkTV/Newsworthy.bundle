@@ -1,5 +1,38 @@
 #from configuration import *
-from collections import deque
+#from collections import deque
+#import copy
+import time
+
+ExpandedSearchTimeFactor = 10
+ExpandedSearchMaxResultsFactor = 10
+TVFavesDict = 'TVFavesDict'
+nzbItemsDict = 'nzbItemsDict'
+nzbConfigDict = 'nzbConfigDict'
+nntpConfigDict = 'nntpConfigDict'
+FSConfigDict = 'FSConfigDict'
+
+MovieSearchDays_Default = "0" # 0 is a special case, and basically means no filter
+TVSearchDays_Default = "0" # 0 is a special case, and basically means no filter
+
+persistentQueuing  = True
+
+CACHE_INTERVAL     = 0
+TVRAGE_CACHE_TIME  = 0
+IMDB_CACHE_TIME    = 30
+NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
+longCacheTime      = 600
+loglevel=6
+
+####################################################################################################
+# loglevels:
+# 1: Errors only
+# 2: Info + Errors
+# 3: Debug Level 1 + Info + Errors
+# 4: ALL Debug + Info + Errors - THIS IS A LOT OF LOGS BEING CREATED.  USE WISELY
+# 5: EVEN MORE DEBUG!! - All the recursive stuff you just should never ever want to see!
+# 6: CRAZY LEVELS OF DEBUG!!!! - I had to invent this level because I found even more useless stuff to log!
+# 7: STUPID SHIT BEING LOGGED!!! - Don't use this unless you hate your filesystem and performance!!!!
+####################################################################################################
 
 class AppService(object):
   def __init__(self, app):
@@ -13,58 +46,195 @@ class AppService(object):
     # Here to be overridden by instance implementations
     pass
 
-class NWQueue(deque):
+class NWQueue(object):
   def __init__(self, name):
-    funcName = "[NWQueue.__init__]"
-    self.queue = deque()
+    funcName = "[NWQueue.__init__][" + name + "]"
     self.name = name
     self.dictName = ("NWQueue_" + name)
+    self.queueDictName = self.dictName + '_queue'
+    self.dequeuedDictName = self.dictName + '_dequeued'
+    self.queue = []
+    self.dequeued = []
+    self.queueLock = Thread.Lock('queueLock')
+    self.dequeuedLock = Thread.Lock('dequeuedLock')
+    self.queueCopyLock = Thread.Lock('queueCopyLock')
+    self.dequeuedCopyLock = Thread.Lock('dequeuedCopyLock')
+    self.useLocking = True
+    self.saveLocking = True
+    self.lastSave = 0
+    self.saveInterval = 0 #seconds
+    self.copyBeforeSave = False
     
-    if self.dictName in Dict:
-      log(5, funcName, self.dictName, 'found!')
-      self.queue = Dict[self.dictName]
-      log(5, funcName, self.dictName, 'length saved:',len(self.queue))
+    if self.queueDictName in Dict:
+      try:
+        log(5, funcName, self.queueDictName, 'found!')
+        savedQueue = Dict[self.queueDictName]
+        log(7, funcName, 'Found:', savedQueue)
+        self.queue.extend(savedQueue)
+        log(5, funcName, self.queueDictName, 'length retrieved:',len(self.queue))
+      except:
+        log(5, funcName, self.dictName, 'error retrieving saved queue, recreating')
+        log(7, funcName, self.dictName, Exception)
+      finally:
+        pass #self.save()
     else:
-      log(5, funcName, self.dictName, 'not found, creating')
-      Dict[self.dictName] = self.queue
-  
+      log(5, funcName, self.queueDictName, 'not found, it will be created')
+      #self.save()
+
+    if self.dequeuedDictName in Dict:
+      try:
+        log(5, funcName, self.dequeuedDictName, 'found!')
+        savedQueue = Dict[self.dequeuedDictName]
+        log(7, funcName, 'Found:', savedQueue)
+        self.dequeued.extend(savedQueue)
+        log(5, funcName, self.dequeuedDictName, 'length retrieved:',len(self.dequeued))
+      except:
+        log(5, funcName, self.dictName, 'error retrieving saved dequeued, recreating')
+        log(7, funcName, self.dictName, Exception)
+      finally:
+        pass #self.save()
+    else:
+      log(5, funcName, self.dequeuedDictName, 'not found, it will be created')
+      #self.save()
+    self.save()
+  ##end __init__
   def __repr__(self):
     return self.queue
+  def __len__(self):
+    return len(self.queue)
+    #return self.queue.qsize()
+  def __iter__(self):
+    return self.queue
+  
+  def reset(self):
+    self.queue = []
+    self.dequeued = []
+    self.save()
 
+  def append(self, item):
+    #This function does nothing except pass the request to self.put, consolidating logic.
+    #This interface is available for compatibility with list commands
+    funcName = "[" + self.dictName + ".append]"
+    self.put(item)
   def put(self, item):
     """Puts an item into this queue"""
+    funcName = "[" + self.dictName + ".put]"
+    log(7, funcName, 'Putting an item on the queue')
+    resp = False
     try:
+      if self.useLocking: Thread.AcquireLock(self.queueLock)
       self.queue.append(item)
-      #Save the queue to the Dict for persistence
-      #try:
-      Dict[self.dictName] = self.queue
-      #except:
-      #  pass
-      return True
+      self.save()
+      resp = True
     except:
-      return False
+      resp = False
+    finally:
+      if self.useLocking: Thread.ReleaseLock(self.queueLock)
+    return resp
   def get(self):
-    """Gets an item from the queue, and doesn't remove it from the queue"""
+    #This function essentially does nothing except pass the request down to the self.pop function.
+    """Gets and removes an item from the queue, same as pop()"""
+    funcName = "[" + self.dictName + ".get]"
     try:
-      item=self.queue[0]
+      item = self.pop()
       return item
     except:
+      log(1, funcName, 'Error getting item')
+      raise
       return False
-  def pop(self):
+  def pop(self, position=0):
     """Gets and removes an item from the queue"""
+    funcName = "[" + self.dictName + ".pop]"
+    log(7, funcName, 'Getting an item from the queue')
     try:
-      item=self.popleft()
-      Dict[self.dictName] = self.queue
-      return item
+      if self.useLocking: Thread.AcquireLock(self.queueLock)
+      if self.useLocking: Thread.AcquireLock(self.dequeuedLock)
+      if position > 0:
+        item=self.queue.pop()
+      else:
+        item=self.queue.pop(position)
+      
+      #log(7, funcName, 'Popped item:', item)
+      self.dequeued.append(item)
+      self.save()
     except:
-      return False
+      log(1, funcName, 'Error popping item')
+      raise
+      item = False
+    finally:
+      if self.useLocking: Thread.ReleaseLock(self.dequeuedLock)
+      if self.useLocking: Thread.ReleaseLock(self.queueLock)
+      return item
   def remove(self, item):
     """Removes an item from the queue"""
+    funcName = "[" + self.dictName + ".remove]"
+    resp = False
+    log(7, funcName, 'Removing an item')
     try:
-      self.queue.remove(item)
-      return True
+      try:
+        if self.useLocking: Thread.AcquireLock(self.queueLock)
+        self.queue.remove(item)
+      except:
+        pass
+      try:
+        if self.useLocking: Thread.AcquireLock(self.dequeuedLock)
+        self.dequeued.remove(item)
+      except:
+        pass
+      self.save()
+      resp = True
     except:
-      return False
+      resp = False
+    finally:
+      if self.useLocking: Thread.ReleaseLock(self.queueLock)
+      if self.useLocking: Thread.ReleaseLock(self.dequeuedLock)
+    return resp
+  def save(self):
+    funcName = "[" + self.dictName + ".save]"
+    log(6, funcName, 'Saving', self.dictName)
+    lastStep = 'starting, checking last saved time'
+    rightNow = time.time()
+    if rightNow - self.lastSave > self.saveInterval:
+      try:
+        if self.saveLocking: Thread.AcquireLock(self.queueCopyLock)
+        if self.saveLocking: Thread.AcquireLock(self.dequeuedCopyLock)
+        Dict[self.queueDictName] = []
+        Dict[self.dequeuedDictName] = []
+        
+        log(6, funcName, 'Saving queue', self.dictName)
+        if self.copyBeforeSave:
+          log(7, funcName, 'Duplicating', self.dictName, 'queue')
+          queueToSave = []
+          lastStep = 'Duplicating ' + self.dictName + ' queue'
+          queueToSave.extend(self.queue)
+          lastStep = 'Saving ' + self.dictName + ' queue'
+          Dict[self.queueDictName] = queueToSave
+          log(7, funcName, 'Saved', self.dictName, 'queue:', len(Dict[self.queueDictName]))
+        else:
+          lastStep = "Saving queue"
+          Dict[self.queueDictName] = self.queue
+          
+        log(6, funcName, 'Saving dequeue', self.dictName) 
+        if self.copyBeforeSave:
+          log(7, funcName, 'Duplicating', self.dictName, 'dequeued')
+          dequeuedToSave = []
+          lastStep = 'Duplicating ' + self.dictName + 'dequeued'
+          dequeuedToSave.extend(self.dequeued)
+          lastStep = 'Saving ' + self.dictName + ' dequeued'
+          Dict[self.dequeuedDictName] = dequeuedToSave
+          log(7, funcName, 'Saved', self.dictName, 'dequeued:', len(Dict[self.dequeuedDictName]))
+        else:
+          lastStep = "Saving dequeue"
+          Dict[self.dequeuedDictName] = self.dequeued
+      except:
+        log(5, funcName, 'ERROR at step:', lastStep)
+        raise
+      finally:
+        if self.saveLocking: Thread.ReleaseLock(self.queueCopyLock)
+        if self.saveLocking: Thread.ReleaseLock(self.dequeuedCopyLock)
+        log(7, funcName, 'Setting lastSave time')
+        self.lastSave = time.time()
+
 
 class NewzworthyApp(object):
   def __init__(self):
@@ -73,16 +243,18 @@ class NewzworthyApp(object):
     from downloader import Downloader
     log(5, funcName, 'importing Queue')
     from queue import Queue
-    #from service import Service
+    from unpacker import Unpacker
 
     try:
       self.num_client_threads = int(Dict[nntpConfigDict]['nntpConnections'])
     except:
       self.num_client_threads = 1
-    log(4, funcName, 'Initializing Downloader')
-    self.downloader = Downloader(self)
     log(4, funcName, 'Initializing Queue')
     self.queue = Queue(self)
+    log(4, funcName, 'Initializing Downloader')
+    self.downloader = Downloader(self)
+    self.unpacker = None
+    self.stream_initiator = None
     #self.service = Service(self)
 
 class article(object):
@@ -113,32 +285,16 @@ class NZBService(object):
     self.nzbmatrixPassword=''
     self.nzbmatrixAPIKey=''
     
-ExpandedSearchTimeFactor = 10
-ExpandedSearchMaxResultsFactor = 10
-TVFavesDict = 'TVFavesDict'
-nzbItemsDict = 'nzbItemsDict'
-nzbConfigDict = 'nzbConfigDict'
-nntpConfigDict = 'nntpConfigDict'
-FSConfigDict = 'FSConfigDict'
-
-MovieSearchDays_Default = "0" # 0 is a special case, and basically means no filter
-TVSearchDays_Default = "0" # 0 is a special case, and basically means no filter
-
-CACHE_INTERVAL     = 0
-TVRAGE_CACHE_TIME  = 0
-IMDB_CACHE_TIME    = 30
-NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
-longCacheTime      = 600
-loglevel=5
 
 ####################################################################################################
-# loglevels:
-# 1: Errors only
-# 2: Info + Errors
-# 3: Debug Level 1 + Info + Errors
-# 4: ALL Debug + Info + Errors - THIS IS A LOT OF LOGS BEING CREATED.  USE WISELY
-# 5: EVEN MORE DEBUG!! -- All the recursive stuff you just should never ever want to see!
-####################################################################################################
+# def loadQueueFromDisk(path):
+#   funcName = "[loadQueueFromDisk]"
+#   if Core.storage.dir_exists(Core.storage.join_path(Core.storage.data_path, path)):
+#     basePath = Core.storage.join_path(Core.storage.data_path, path)
+#     mediaDirs = Core.storage.list_dirs(basePath)
+#     for item in mediaDirs:
+#       if Core.storage.dir_exists(item):
+#         log(6,funcName, 'found dir', item)
 
 ####################################################################################################
 def log(messageloglevel, *args):
@@ -192,16 +348,16 @@ def StupidUselessFunction(key, sender='nothing'):
   pass
 
 ####################################################################################################
-def bool(value):
-  try:
-    if value=="true": return True
-    if value=="false": return False
-    if value=="1": return True
-    if value=="0": return False
-    if len(value) < 1: return False
-    if value==None: return False
-    if value.count < 1: return False
-    if value==True: return True
-    if value==False: return False
-  except:
-    return True
+# def bool(value):
+#   try:
+#     if value=="true": return True
+#     if value=="false": return False
+#     if value=="1": return True
+#     if value=="0": return False
+#     if len(value) < 1: return False
+#     if value==None: return False
+#     if value.count < 1: return False
+#     if value==True: return True
+#     if value==False: return False
+#   except:
+#     return True
