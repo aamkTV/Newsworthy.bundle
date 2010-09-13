@@ -55,12 +55,6 @@ def Start():
   HTTP.SetCacheTime=CACHE_INTERVAL
   HTTP.ClearCache()
   
-#   log(1, funcName, 'ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ checking shit')
-#   if True==False:
-#     raise Exception("holy mutha fucking shit WHOA")
-#   else:
-#     raise Exception("oh yeah that worked")
-
   #Hack
   if nzbItemsDict in Dict:
     log(5, funcName, nzbItemsDict, 'found!')

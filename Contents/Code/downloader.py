@@ -81,8 +81,8 @@ class Downloader(AppService):
     log(6, funcName, 'self.notPaused state:', self.notPaused)
     resuming = resume
     while self.notPaused:
-      log(6, funcName, 'length of downloadingItems:', len(self.app.queue.downloadingItems))
-      log(6, funcName, 'length of downloadQueue:', len(self.app.queue.downloadQueue))
+      log(7, funcName, 'length of downloadingItems:', len(self.app.queue.downloadingItems))
+      log(7, funcName, 'length of downloadQueue:', len(self.app.queue.downloadQueue))
       #log(6, funcName, 'resuming:', resuming)
     #while len(self.item_queue)>=1:
       #log(6, funcName, "running")
@@ -129,9 +129,9 @@ class Downloader(AppService):
             log(6, funcName, "Finished downloading", filename)
             item.add_incoming_file(filename, data)
           
-          log(6, funcName, 'Setting item.downloading to False')
+          log(7, funcName, 'Setting item.downloading to False')
           item.downloading = False
-          log(6, funcName, 'Setting item.downloadComplete to True')
+          log(7, funcName, 'Setting item.downloadComplete to True')
           item.downloadComplete = True
           item.save()
           item = False
@@ -146,7 +146,7 @@ class Downloader(AppService):
       
       else: #not self.notPaused or item_queue<1
         sleeptime = 5 #seconds between loops when there's nothing to do
-        log(6, funcName, 'Nothing to download, going to sleep for', sleeptime)
+        log(7, funcName, 'Nothing to download, going to sleep for', sleeptime)
         time.sleep(int(sleeptime))
   
   def download_file(self, file_obj):
