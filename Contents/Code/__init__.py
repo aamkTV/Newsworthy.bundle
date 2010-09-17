@@ -168,6 +168,7 @@ def MainMenu():
   if not loggedInNZBService:
     global nzbServiceInfo
     global loggedInNZBService
+    log(3, funcName, 'Not logged into NZB Service, doing it now')
     # try to log into the NZB Service...
     setNZBService()
     loggedInNZBService = nzb.performLogin(nzbServiceInfo, forceRetry=True)
@@ -178,6 +179,7 @@ def MainMenu():
   if not loggedInNNTP:
     global loggedInNNTP
     global nntp
+    log(3, funcName, 'Not logged into NNTP, doing it now')
     # try to log into the nntp service
     nntp = nntpClient()
     try:
@@ -646,6 +648,11 @@ def AddReportToQueue(sender, nzbID, article='nothing'):
 @route('/video/newzworthy/manageCompleteQueue')
 def manageCompleteQueue():
   funcName = "[manageCompleteQueue]"
+
+  # Some cleanup to avoid errors
+  if app.stream_initiator != None: app.stream_initiator = None
+
+
   dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=10)
   
   if len(app.queue.completedItems) > 0:
@@ -669,38 +676,41 @@ def manageQueue():
   funcName = "[manageQueue]"
 
   # First check if there's anything in the queue
-  log(5, funcName, 'Items in queue:', len(app.queue.items))
+  log(6, funcName, 'Items in download queue:', len(app.queue.downloadableItems))
   if len(app.queue.downloadableItems) == 0:
     return MessageContainer('Nothing in queue', 'There are no items in the queue')
-    MainMenu()
-
+    #MainMenu()
+  
+  # Some cleanup to avoid errors
+  if app.stream_initiator != None: app.stream_initiator = None
+  
   # Display the contents of the queue
-  log(5, funcName, 'Creating dir')
+  log(7, funcName, 'Creating dir')
   dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=5)
   if app.downloader.notPaused:
     dir.Append(DirectoryItem(Route(pauseDownload), title="Pause Downloading", subtitle="Temporarily suspend all downloads", summary=""))
   else:
     dir.Append(DirectoryItem(Route(resumeDownload), title="Resume Downloading", subtitle="You temporarily suspended downloads.  Resume them now.", summary=""))
     
-  log(6, funcName, 'Looking at each item in queue')
+  log(7, funcName, 'Looking at each item in queue')
   for item in app.queue.downloadableItems:
     subtitle = ' '
     summary = ' '
-    log(6, funcName, 'Examining:', item.report.title)
+    log(7, funcName, 'Examining:', item.report.title)
     if item.complete:
-      log(6, funcName, 'item.complete:', item.complete)
+      log(7, funcName, 'item.complete:', item.complete)
       subtitle = L("DL_COMPLETE")
       summary = ''
 
     elif item.play_ready:
-      log(6, funcName, 'item.play_ready:', item.play_ready)
+      log(7, funcName, 'item.play_ready:', item.play_ready)
       subtitle = L("DL_PLAY_READY")      
       summary = 'Progress: ' + str(len(item.incoming_files)) + ' out of ' + str(len(item.nzb.rars)) + ' RARs completed downloading.'
 
     elif item.downloading:
-      log(6, funcName, 'item.downloading:', item.downloading)
+      log(7, funcName, 'item.downloading:', item.downloading)
       tm = item.play_ready_time
-      log(6, funcName, 'item.play_ready_time:', item.play_ready_time)
+      log(7, funcName, 'item.play_ready_time:', item.play_ready_time)
       # All these strings can be found in the Strings folder of the bundle
       if tm == 0:
         subtitle = L('DL_PLAY_READY')
@@ -722,8 +732,8 @@ def manageQueue():
 
     else:
       subtitle = L('DL_QUEUED')
-    log(5, funcName, 'Queue item:', item.report.title+': subtitle:', subtitle, 'summary:', summary)
-    log(5, funcName, 'Found in queue:', item)
+    log(7, funcName, 'Queue item:', item.report.title+': subtitle:', subtitle, 'summary:', summary)
+    log(7, funcName, 'Found in queue:', item)
     dir.Append(
       PopupDirectoryItem(
         Route(QueueItemPopup, id=item.id),
@@ -746,12 +756,20 @@ def QueueItemPopup(id):
 
   if not item: return MessageContainer ("Item Not found", "Item not found")
 
-  if item.play_ready:
+  if item.play_ready:# and not item.complete: #Don't stream a fully downloaded file, that's stupid
     c.Append(
       VideoItem(
         Route(StartStreamAction, id=item.id),
         title = L('PLAY_DL')
       ))
+  
+#   if item.complete:
+#     c.Append(
+#       VideoItem(
+#         Redirect(item.fullPathToMediaFile),
+#         title=L('PLAY_DL')#item.report.title))
+#       )
+#     )
 
   if not item.complete:
     f = CancelDownloadAction

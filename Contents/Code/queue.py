@@ -137,6 +137,20 @@ class MediaItem(object):
     return self.secs_left
   
   @property
+  def fullPathToMediaFile(self):
+    funcName = '[Queue.MediaItem.fullPathToMediaFile]'
+    for name in self.files:
+      index = name.rfind('.')
+      if index > -1:
+        ext = name[index+1:]
+        if ext in media_extensions:
+          log(5, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
+          return Core.storage.join_path(self.completed_path, name)
+    else:
+      log(5, funcName, 'Could not find a media file')
+      return False
+    
+  @property
   def stream(self):
     funcName = "[queue.MediaItem.stream]"
     if not app.stream_initiator and self.play_ready and self.files:
