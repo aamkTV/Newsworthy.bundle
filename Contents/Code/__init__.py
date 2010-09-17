@@ -699,12 +699,12 @@ def manageQueue():
     log(7, funcName, 'Examining:', item.report.title)
     if item.complete:
       log(7, funcName, 'item.complete:', item.complete)
-      subtitle = L("DL_COMPLETE")
+      subtitle = L('DL_COMPLETE')
       summary = ''
 
     elif item.play_ready:
       log(7, funcName, 'item.play_ready:', item.play_ready)
-      subtitle = L("DL_PLAY_READY")      
+      subtitle = L('DL_PLAY_READY')      
       summary = 'Progress: ' + str(len(item.incoming_files)) + ' out of ' + str(len(item.nzb.rars)) + ' RARs completed downloading.'
 
     elif item.downloading:

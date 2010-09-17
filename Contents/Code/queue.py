@@ -153,6 +153,7 @@ class MediaItem(object):
   @property
   def stream(self):
     funcName = "[queue.MediaItem.stream]"
+    global app
     if not app.stream_initiator and self.play_ready and self.files:
       log(7, funcName, "Files:", self.files)
       for name in self.files: #Core.storage.list_dir(self.completed_path):
@@ -213,6 +214,7 @@ class MediaItem(object):
 
   def unpack(self, filename):
     funcName = "[Queue.MediaItem.unpack]"
+    global app
     unpackerExists = False
     try:
       if not app.unpacker:

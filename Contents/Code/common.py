@@ -21,7 +21,7 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel=6
+loglevel=7
 
 ####################################################################################################
 # loglevels:
