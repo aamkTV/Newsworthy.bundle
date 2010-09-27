@@ -32,7 +32,7 @@ def performLogin(nzbService, forceRetry=False):
     USERNAME = nzbService.nzbmatrixUsername
     PASSWORD = nzbService.nzbmatrixPassword
     values = {'username': USERNAME, 'password': PASSWORD}
-    log(5,funcName,'nzbmatrix login credentials:',values)
+    log(8,funcName,'nzbmatrix login credentials:',values)
 
     if forceRetry:
       HTTP.ClearCache()

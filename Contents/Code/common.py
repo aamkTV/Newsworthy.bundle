@@ -10,6 +10,7 @@ nzbItemsDict = 'nzbItemsDict'
 nzbConfigDict = 'nzbConfigDict'
 nntpConfigDict = 'nntpConfigDict'
 FSConfigDict = 'FSConfigDict'
+routeBase = '/video/newzworthy/'
 
 MovieSearchDays_Default = "0" # 0 is a special case, and basically means no filter
 TVSearchDays_Default = "0" # 0 is a special case, and basically means no filter
@@ -21,7 +22,7 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel=7
+loglevel=6
 
 ####################################################################################################
 # loglevels:
@@ -48,7 +49,7 @@ class AppService(object):
 
 class NWQueue(object):
   def __init__(self, name):
-    funcName = "[NWQueue.__init__][" + name + "]"
+    funcName = '[NWQueue.__init__][' + name + ']'
     self.name = name
     self.dictName = ("NWQueue_" + name)
     self.queueDictName = self.dictName + '_queue'
@@ -331,21 +332,42 @@ def encodeText(value):
 
 ####################################################################################################
 def cleanFSName(value):
-  value = value.replace(" ","")
+  value = value.replace(" ","_")
   value = value.replace('"','')
   value = value.replace("'","")
   value = value.replace("`","")
   value = value.replace(":","-")
-  value = value.replace("&","-")
-  value = value.replace("/", "-")
+  value = value.replace("&","_")
+  value = value.replace("/", "_")
   value = value.replace("=","-")
+  value = value.replace(",", "_")
+  value = value.replace("\|", "_")
+  value = value.replace("(", ".")
+  value = value.replace(")", ".")
+  value = value.replace('\\', ".")
+  value = value.replace('?', '.')
+  value = value.replace(';', '.')
+  value = value.replace('<', '_')
+  value = value.replace('>', '_')
+  value = value.replace('*', '_')
+  value = value.replace('@', '_')
+  value = value.replace('%', '')
+  value = value.replace('!', '')
+  value = value.replace('#', '_')
+  value = value.replace('^', '_')
+  value = value.replace("[", ".")
+  value = value.replace("]", '.')
+  value = value.replace("{", '.')
+  value = value.replace("}", '.')
+  value = value.replace("~", '_')
   value = value.encode('ascii', 'ignore')
   return value
   
 ####################################################################################################
+@route(routeBase + 'StupidUselessFunction/{key}')
 def StupidUselessFunction(key, sender='nothing'):
   # A noop function, just for creating "blank" context menus
-  pass
+  return True
 
 ####################################################################################################
 # def bool(value):

@@ -18,7 +18,7 @@ def performLogin(nzbService, forceRetry=False):
   if nzbService.newzbinUsername != "" and nzbService.newzbinUsername and nzbService.newzbinPassword != "" and nzbService.newzbinPassword:
     values =  {'username': nzbService.newzbinUsername,
                'password': nzbService.newzbinPassword}
-    log(4, funcName, 'values being used to login:', values)
+    log(8, funcName, 'values being used to login:', values)
     # don't use a cached response if we are retrying the login
     if forceRetry:
       HTTP.ClearCache()

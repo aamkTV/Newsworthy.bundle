@@ -9,7 +9,7 @@
   "DL_QUEUED"               : "Download Queued",
   "DL_DOWNLOADING"          : "Downloading",
   "DL_PREPARING"            : "Preparing Download...",
-  "DL_PLAY_READY"           : "Ready to Play (downloading in background)", 
+  "DL_PLAY_READY"           : "Play (downloading in background)", 
   "DL_COMPLETE"             : "Download Complete",
   
   "DL_SUM_PR_MIN_SECS"      : "Ready to play in %d minute %d seconds",
@@ -24,6 +24,9 @@
   "BM_ADD_TO_QUEUE"         : "Move Bookmark to My Queue",
   "BM_REMOVE"               : "Remove Bookmark",
   
-  "ITM_QUEUE"               : "Add to My Queue",
+  "ITM_QUEUE"               : "Add to Download Queue",
   "ITM_BOOKMARK"            : "Bookmark",
+  
+  "Q_PAUSE"					: "Pause Newzworthy Downloading",
+  "Q_RESUME"				: "Resume Newzworthy Downloading",
 }

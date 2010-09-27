@@ -3,7 +3,7 @@ from unpacker import Unpacker
 from nzbf import NZB
 #from common import AppService
 
-media_extensions = ['avi', 'mkv', 'mov', 'mp4', 'wmv']
+media_extensions = ['avi', 'mkv', 'mov', 'wmv', 'mp4', 'm4v']
 app = None
 
 class MediaItem(object):
@@ -47,21 +47,25 @@ class MediaItem(object):
     #  Core.storage.save(report_path, XML.StringFromElement(report_el))
   
   def delete(self):
-    myPath = Core.storage.join_path(self.media_path, self.id)
-    Core.storage.remove_tree(myPath)
+    funcName = '[Queue.MediaItem.delete]'
     try:
       if app.unpacker:
+        log(7, funcName, 'checking if existing unpacker is for this item')
         if app.unpacker.item.id == self.id:
+          log(7, funcName, 'stopping unpacker for this item')
           app.unpacker.stopped = True
-          app.unpacker = None
+          #app.unpacker = None
     except:
-      pass
+      log(6, funcName, 'Unable to stop unpacker')
+
+    myPath = Core.storage.join_path(self.media_path, cleanFSName(self.report.title))
+    Core.storage.remove_tree(myPath)
     return True
       
   def path(self, subdir):
     funcName = "[queue.MediaItem.path]"
     #log(5, funcName, 'returning this folder:', self.media_path, self.id, subdir)
-    path = Core.storage.join_path(self.media_path, self.id, subdir)
+    path = Core.storage.join_path(self.media_path, cleanFSName(self.report.title), subdir)
     log(7, funcName, 'requested path type:', subdir, ': path:',path)
     return path
     
@@ -75,7 +79,29 @@ class MediaItem(object):
     
   @property
   def play_ready(self):
-    return self.complete or (app.unpacker != None and app.unpacker.play_ready)
+    funcName = '[Queue.MediaItem.play_ready]'
+    ready = False
+    if app.unpacker != None:
+      log(7, funcName, 'app.unpacker != None')
+      if app.unpacker.item.id == self.id:
+        log(7, funcName, 'app.unpacker.item.id (' + app.unpacker.item.id + ') == self.id (' + self.id + ')')
+        if app.unpacker.play_ready:
+          log(7, funcName, 'app.unpacker.play_ready')
+          if self.fullPathToMediaFile:
+            log(7, funcName, 'self.fullPathToMediaFile:',self.fullPathToMediaFile)
+            ready = True
+          else:
+            log(7, funcName, 'No media file found')
+        else:
+          log(7, funcName, 'NOT app.unpacker.play_ready')
+      else:
+        log(7, funcName, 'app.unpacker.item.id (' + app.unpacker.item.id + ') != self.id (' + self.id + ')')
+    else:
+      log(7, funcName, 'app.unpacker == None')
+    if self.complete and self.fullPathToMediaFile:
+      ready = True
+    log(7, funcName, 'Returning:', ready)
+    return ready
     
   @property
   def play_ready_percent(self):
@@ -139,43 +165,74 @@ class MediaItem(object):
   @property
   def fullPathToMediaFile(self):
     funcName = '[Queue.MediaItem.fullPathToMediaFile]'
+    fullPath = False
     for name in self.files:
       index = name.rfind('.')
       if index > -1:
         ext = name[index+1:]
         if ext in media_extensions:
           log(5, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
-          return Core.storage.join_path(self.completed_path, name)
+          fullPath = Core.storage.join_path(self.completed_path, name)
+          break
     else:
       log(5, funcName, 'Could not find a media file')
-      return False
-    
+    log(7, funcName, 'Returning:', fullPath)
+    return fullPath
+  
+  @property
+  def mediaFileName(self):
+    funcName = '[Queue.MediaItem.mediaFileName]'
+    MFName = False
+    for name in self.files:
+      index = name.rfind('.')
+      if index > -1:
+        ext = name[index+1:]
+        if ext in media_extensions:
+          log(5, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
+          MFName = name
+          break
+    else:
+      log(5, funcName, 'Could not find a media file')
+    return MFName
+
   @property
   def stream(self):
     funcName = "[queue.MediaItem.stream]"
     global app
+    
+    # Reset, but do not cross the streams.
+    # What happens if we cross the streams?  Very bad things, Ray.
+    if not app.stream_initiator == None:
+      log(6, funcName, 'Resetting the stream_initiator')
+      app.stream_initiator = None
+    
     if not app.stream_initiator and self.play_ready and self.files:
       log(7, funcName, "Files:", self.files)
-      for name in self.files: #Core.storage.list_dir(self.completed_path):
-        index = name.rfind('.')
-        if index > -1:
-          ext = name[index+1:]
-          if ext in media_extensions:
-            log(6, funcName, "Found media file:", name)
-            
-            if self.complete:
-              filesize = None
-            else:
-              filesize = self.files[name]
-            log(6, funcName, "initiating Stream.LocalFile with name:", name, "and moredata:", (not self.complete), "and size:", filesize)
-            app.stream_initiator = Stream.LocalFile(
-              Core.storage.join_path(self.completed_path, name),
-              more_data_coming = (not self.complete),
-              size = filesize
-            )
-            log (6, funcName, "initiated stream")
-            break
-    log(6, funcName, "returning stream_initiator:", self.stream_initiator)
+#       for name in self.files: #Core.storage.list_dir(self.completed_path):
+#         index = name.rfind('.')
+#         if index > -1:
+#           ext = name[index+1:]
+#           if ext in media_extensions:
+#             log(6, funcName, "Found media file:", name)
+      mediaFile = self.fullPathToMediaFile
+      if self.complete:
+        filesize = None
+      else:
+        filesize = self.files[self.mediaFileName]
+      log(6, funcName, "initiating Stream.LocalFile with mediaFile:", mediaFile, "and moredata:", (not self.complete), "and size:", filesize)
+#             app.stream_initiator = Stream.LocalFile(
+#               Core.storage.join_path(self.completed_path, name),
+#               more_data_coming = (not self.complete),
+#               size = filesize
+#             )
+      app.stream_initiator = Stream.LocalFile(
+	    mediaFile,
+	    more_data_coming = (not self.complete),
+	    size = filesize
+      )
+      log (6, funcName, "initiated stream")
+      #break
+    log(6, funcName, "returning stream_initiator:", app.stream_initiator)
     return app.stream_initiator
   
   def fileCompleted(self, filename):
@@ -198,19 +255,6 @@ class MediaItem(object):
     log(6, funcName,"Saved incoming data file", filename, "for item with id", self.id)
     self.unpack(filename)
     self.save()
-      
-#   def unpack(self, filename):
-#     if not app.unpacker:
-#       #if filename != self.nzb.rars[0].name:
-#         #raise Exception('Trying to create an unpacker with a file other than the first rar (\'%s\', should be \'%s\')', filename, self.nzb.rars[0].name)
-#       app.unpacker = Unpacker(self)
-#       self.files = app.unpacker.get_contents()
-#       app.unpacker.start()
-#       if filename != self.nzb.rars[0].name:
-#         app.unpacker.add_part(filename)
-#     else:
-#       app.unpacker.add_part(filename)
-#     self.save()
 
   def unpack(self, filename):
     funcName = "[Queue.MediaItem.unpack]"
@@ -229,11 +273,16 @@ class MediaItem(object):
     if not unpackerExists:
       log(6, funcName, 'Unpacker does not exist, creating one')
       app.unpacker = Unpacker(self)
+      log(7, funcName, 'Getting contents of unpacker')
       self.files = app.unpacker.get_contents()
-      app.unpacker.start()
+      log(7, funcName, 'Contents of unpacker:', self.files)
       if filename != self.nzb.rars[0].name:
+        log(7, funcName, 'filename is not the first rar in the list')
         app.unpacker.add_part(self.nzb.rars[0].name)
         app.unpacker.add_part(filename)
+      log(7, funcName, 'starting unpacker')
+      app.unpacker.start()
+      log(7, funcName, 'unpacker started')
     else:
       log(6, funcName, 'Adding file to existing unpacker')
       app.unpacker.add_part(filename)
@@ -282,12 +331,6 @@ class Queue(AppService):
     funcName = '[Queue.Queue.setupItemQueue]'
     if persistentQueuing:
       self.items = NWQueue('mediaItems')
-#       if reset:
-#         log(6, 'Resetting the queues')
-#         self.items.queue = []
-#         self.items.dequeue = []
-#         self.items.save()
-#         log(6, 'New queue length:', len(self.items.queue))
     else:
       items = []
     return self.items

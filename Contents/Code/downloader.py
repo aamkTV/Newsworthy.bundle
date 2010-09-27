@@ -1,6 +1,8 @@
 from decoder import Decoder
 import time
 
+SLEEP_TIME = 1 #seconds between loops when there's nothing to do
+        
 class DownloadInfo(object):
   def __init__(self, file_obj, article_obj, decoder):
     self.file_obj = file_obj
@@ -61,7 +63,12 @@ class Downloader(AppService):
     pass
   
   def stop_download_thread(self):
+    funcName = '[Downloader.stop_download_thread]'
     self.notPaused = False
+    #log(7, funcName, self.client_pool[0])
+    self.shutdown_clients()
+    #self.client_pool = Core.runtime.create_taskpool(self.app.num_client_threads)
+
   
   def restart_download_thread(self):
     self.notPaused = True
@@ -145,9 +152,8 @@ class Downloader(AppService):
         self.shutdown_clients()
       
       else: #not self.notPaused or item_queue<1
-        sleeptime = 5 #seconds between loops when there's nothing to do
-        log(7, funcName, 'Nothing to download, going to sleep for', sleeptime)
-        time.sleep(int(sleeptime))
+        log(7, funcName, 'Nothing to download, going to sleep for', SLEEP_TIME)
+        time.sleep(int(SLEEP_TIME))
   
   def download_file(self, file_obj):
     return self.file_pool.add_task(
@@ -189,8 +195,10 @@ class Downloader(AppService):
       
       log(7, funcName, 'Getting file:', info.file_obj.name, ', article:', info.article_obj.article_id)
       article = client.get_article(info.article_obj)
-      info.decoder.add_part(article)
-      info.article_obj.complete = True
+      
+      if self.notPaused:
+        info.decoder.add_part(article)
+        info.article_obj.complete = True
 ###############################################
 # Part of persistency effort
 #       if persistentQueuing:

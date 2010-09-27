@@ -54,7 +54,7 @@ def configure(sender):
 	
 	cm = ContextMenu(includeStandardItems=False)
 	cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
-	dir = MediaContainer(contextMenu=cm, replaceParent=False, noHistory=False, noCache=True)
+	dir = MediaContainer(contextMenu=cm, viewGroup='Lists', replaceParent=False, noHistory=False, noCache=True, thumb=R('configuration.png'))
 	
 	###########################
 	# NZB CONFIGURATION SECTION
@@ -88,7 +88,7 @@ def configure(sender):
 	# Present the user with the options to configure their news servers
 	dir.Append(Function(InputDirectoryItem(setDictField, title=("News Server: " + nntp.nntpHost), prompt=L("Set News Server Host"), contextKey="a", contextArgs={}), theDict=nntpConfigDict, key='nntpHost'))
 	dir.Append(Function(InputDirectoryItem(setDictField, title=("News Server Port: " + nntp.nntpPort), prompt=L("Set News Server Port"), contextKey="a", contextArgs={}), theDict=nntpConfigDict, key='nntpPort'))
-	dir.Append(Function(DirectoryItem(ToggleValue, title=("News Server SSL? " + str(nntp.nntpSSL)), contextKey="a", contextArgs={}), theDict=nntpConfigDict, key='nntpSSL'))
+	dir.Append(Function(DirectoryItem(ToggleValue, title=("News Server SSL? " + str(nntp.nntpSSL)), contextKey="a", contextArgs={}, thumb=R('configuration.png')), theDict=nntpConfigDict, key='nntpSSL'))
 	dir.Append(Function(InputDirectoryItem(setDictField, title=("News Server Username: " + nntp.nntpUsername), prompt=L('Set News Server Username'), contextKey="a", contextArgs={}), theDict=nntpConfigDict, key='nntpUsername'))
 	try:
 		if len(getConfigValue(theDict=nntpConfigDict, key='nntpPassword'))>=1:

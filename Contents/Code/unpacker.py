@@ -27,10 +27,15 @@ class Unpacker(object):
     return contents
     
   def start(self):
+    funcName = '[start] '
     in_path = self.item.incoming_path
+    Log.Debug(funcName + 'Incoming path: ' + str(in_path))
     out_path = self.item.completed_path
+    Log.Debug(funcName + 'Completed path')
     first_path = Core.storage.join_path(in_path, self.first_part)
+    Log.Debug(funcName + 'First path: ' + str(first_path))
     self.parts.append(self.first_part)
+    Log.Debug(funcName + 'Parts: ' + str(self.parts))
 
     self.proc = Helper.Process(
       'unrar',
@@ -108,13 +113,22 @@ class Unpacker(object):
     
   def process(self, line):
     line = line.strip()
-    if line[-3:] == '99%' and self.play_ready == False:
+    unpackedPercent = line[-3:-1]
+    Log.Debug('% unpacked: ' + str(unpackedPercent))
+#    if line[-3:] == '99%' and self.play_ready == False:
+    try:
+      int(unpackedPercent)
+      unpackedPercentIsNumber = True
+    except:
+      unpackedPercentIsNumber = False
+    
+    if unpackedPercentIsNumber and unpackedPercent >= 98 and not self.play_ready:
       self.play_ready = True
-      Log("Contents of '%s' is play-ready", self.first_part)
+      Log.Debug("Contents of '%s' is play-ready", self.first_part)
     
     elif line[:16] == 'Extracting from ':
       part_name = line.split('/')[-1]
-      Log("Unpacking '%s'", part_name)
+      Log.Debug("Unpacking '%s'", part_name)
     
     #elif line == 'All OK':
     #  self.complete = True

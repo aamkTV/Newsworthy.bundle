@@ -25,7 +25,7 @@
 	<key>PlexFrameworkVersion</key>
 	<string>2</string>
 	<key>PlexPluginLogLevel</key>
-	<string>Info</string>
+	<string>Debug</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>PlexPluginCodePolicy</key>
