@@ -15,6 +15,7 @@ class MediaItem(object):
     self.id = nzbID
     self.report = report
     self.nzb = NZB(nzb_xml)
+    self.valid = True
 
     log(4, funcName, 'Setting media path to', Core.storage.data_path, '/Media')
     self.media_path = Core.storage.join_path(Core.storage.data_path, 'Media')
@@ -48,25 +49,26 @@ class MediaItem(object):
   
   def delete(self):
     funcName = '[Queue.MediaItem.delete]'
+    self.valid = False
     try:
       if app.unpacker:
         log(7, funcName, 'checking if existing unpacker is for this item')
         if app.unpacker.item.id == self.id:
           log(7, funcName, 'stopping unpacker for this item')
           app.unpacker.stopped = True
-          #app.unpacker = None
+          app.unpacker = None
     except:
       log(6, funcName, 'Unable to stop unpacker')
 
-    myPath = Core.storage.join_path(self.media_path, cleanFSName(self.report.title))
+    myPath = Core.storage.join_path(self.media_path, str(self.report.mediaType), cleanFSName(self.report.title))
     Core.storage.remove_tree(myPath)
     return True
       
   def path(self, subdir):
     funcName = "[queue.MediaItem.path]"
     #log(5, funcName, 'returning this folder:', self.media_path, self.id, subdir)
-    path = Core.storage.join_path(self.media_path, cleanFSName(self.report.title), subdir)
-    log(7, funcName, 'requested path type:', subdir, ': path:',path)
+    path = Core.storage.join_path(self.media_path, str(self.report.mediaType), cleanFSName(self.report.title), subdir)
+    log(8, funcName, 'requested path type:', subdir, ': path:',path)
     return path
     
   @property
@@ -112,8 +114,12 @@ class MediaItem(object):
   
   @property
   def total_bytes(self):
-    rar = self.nzb.rars[0]
-    return rar.total_bytes
+    rars = self.nzb.rars[0]
+    totalBytes = rars.size
+    #totalBytes = 0
+    #for file in self.nzb.rars:
+    #  totalBytes = totalBytes + file.size
+    return totalBytes
   
   @property
   def downloaded_bytes(self):
@@ -166,17 +172,18 @@ class MediaItem(object):
   def fullPathToMediaFile(self):
     funcName = '[Queue.MediaItem.fullPathToMediaFile]'
     fullPath = False
+    log(8, funcName, self.files)
     for name in self.files:
       index = name.rfind('.')
       if index > -1:
         ext = name[index+1:]
         if ext in media_extensions:
-          log(5, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
+          log(8, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
           fullPath = Core.storage.join_path(self.completed_path, name)
           break
     else:
       log(5, funcName, 'Could not find a media file')
-    log(7, funcName, 'Returning:', fullPath)
+    log(8, funcName, 'Returning:', fullPath)
     return fullPath
   
   @property
@@ -188,7 +195,7 @@ class MediaItem(object):
       if index > -1:
         ext = name[index+1:]
         if ext in media_extensions:
-          log(5, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
+          log(7, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
           MFName = name
           break
     else:
@@ -219,6 +226,7 @@ class MediaItem(object):
         filesize = None
       else:
         filesize = self.files[self.mediaFileName]
+        #filesize = None
       log(6, funcName, "initiating Stream.LocalFile with mediaFile:", mediaFile, "and moredata:", (not self.complete), "and size:", filesize)
 #             app.stream_initiator = Stream.LocalFile(
 #               Core.storage.join_path(self.completed_path, name),
@@ -227,7 +235,6 @@ class MediaItem(object):
 #             )
       app.stream_initiator = Stream.LocalFile(
 	    mediaFile,
-	    more_data_coming = (not self.complete),
 	    size = filesize
       )
       log (6, funcName, "initiated stream")
@@ -241,20 +248,25 @@ class MediaItem(object):
     try:
       fileExists = Core.storage.file_exists(Core.storage.join_path(self.incoming_path, filename))
       if fileExists:
-        log(6, funcName, "Found file:", filename)
+        log(7, funcName, "Found file:", filename)
       else:
-        log(6, funcName, "File not found:", filename)
+        log(7, funcName, "File not found:", filename)
     except:
-      log(6, funcName, "Error when looking for file:", filename)
+      log(2, funcName, "Error when looking for file:", filename)
     return fileExists
 
-  def add_incoming_file(self, filename, data):
+  #def add_incoming_file(self, filename, data):
+  def add_incoming_file(self, filename):
     funcName = "[Queue.MediaItem.add_incoming_file]"
-    self.incoming_files.append(filename)
-    Core.storage.save(Core.storage.join_path(self.incoming_path, filename), data)
-    log(6, funcName,"Saved incoming data file", filename, "for item with id", self.id)
-    self.unpack(filename)
-    self.save()
+    if self.valid:
+      #cleanFilename = cleanFSName(filename)
+      self.incoming_files.append(filename)
+      #Core.storage.save(Core.storage.join_path(self.incoming_path, filename), data)
+      #log(6, funcName,"Saved incoming data file", filename, "for item with id", self.id)
+      self.unpack(filename)
+      self.save()
+    else:
+      log(7, funcName, 'No need to save, this file is being deleted')
 
   def unpack(self, filename):
     funcName = "[Queue.MediaItem.unpack]"

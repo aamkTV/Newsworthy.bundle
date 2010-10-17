@@ -1,5 +1,6 @@
 from common import *
 
+name = 'Newzbin'
 SEARCH_URL  = "http://www.newzbin.com/search?fpn=p"
 RESULTS_PER_PAGE = 100
 NEWZBIN_NAMESPACE = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
@@ -92,9 +93,10 @@ def search(category, queryString, period, page=0):
             #Try to get the imdb id
             try:
               thisEntry.moreInfo = entry.xpath("report:moreinfo",namespaces=NEWZBIN_NAMESPACE)[0].text.split("/")[-2]
+              thisEntry.moreInfoURL = entry.xpath("report:moreinfo",namespaces=NEWZBIN_NAMESPACE)[0].text
             except:
-              pass
-
+              log(6, funcName, 'Could not find moreInfo URL for', thisEntry.title)
+          log(5, funcName, 'moreInfo:', thisEntry.moreInfo)
           log(5, funcName, 'moreInfoURL:', thisEntry.moreInfoURL)
           thisEntry.nzbID = entry.xpath("report:id",namespaces=NEWZBIN_NAMESPACE)[0].text
           thisEntry.newzbinID = entry.xpath("report:id",namespaces=NEWZBIN_NAMESPACE)[0].text
@@ -114,6 +116,53 @@ def search(category, queryString, period, page=0):
             log(5, funcName, "MB found in", thisEntry.size, " so leaving it alone")
             thisEntry.sizeMB = float(thisEntry.size[:thisEntry.size.find("MB")])
           log(5, funcName, 'start size:', thisEntry.size, ', size in mb:', thisEntry.sizeMB)
+          
+          #attributes = entry.xpath("//report:attributes", namespaces=NEWZBIN_NAMESPACE)
+          #log(7, funcName, '# of attributes:', len(attributes))
+          #for attribute in attributes:
+          #  log(7, funcName, 'attribute:', attribute.text_content())
+          
+          try:
+            #thisEntry.videosource = attributes.xpath("report:attribute[@type='Source']")[0].text_content()
+            thisEntry.videosource = entry.xpath("report:attributes/report:attribute[@type='Source']", namespaces=NEWZBIN_NAMESPACE)[0].text
+            log(7, funcName, 'Video Source:', thisEntry.videosource)
+          except:
+            log(7, funcName, 'Couldn\'t get Video Source:', entry)
+            
+          try:
+            vid_formats = entry.xpath("report:attributes/report:attribute[@type='Video Fmt']", namespaces=NEWZBIN_NAMESPACE)
+            log(7, funcName, 'Got video format entries:', len(vid_formats))
+            for vid_format in vid_formats:
+              log(8, funcName, 'video format:', vid_format.text)
+              thisEntry.videoformat.append(vid_format.text)
+              log(7, funcName, 'video format added:', vid_format.text)
+            log(7, funcName, 'Video Formats:', thisEntry.videoformat)
+          except:
+            log(7, funcName, 'Couldn\'t get Video Formats')
+            
+          try:
+            audio_formats = entry.xpath("report:attributes/report:attribute[@type='Audio Fmt']", namespaces=NEWZBIN_NAMESPACE)
+            for audio_format in audio_formats:
+              thisEntry.audioformat.append(audio_format.text)
+            log(7, funcName, 'Audio Formats:', thisEntry.audioformat)
+          except:
+            log(7, funcName, 'Couldn\'t get audio formats')
+
+          try:
+            languages = entry.xpath("report:attributes/report:attribute[@type='Language']", namespaces=NEWZBIN_NAMESPACE)
+            for language in languages:
+              thisEntry.language.append(language.text)
+            log(7, funcName, 'Languages:', thisEntry.language)
+          except:
+            log(7, funcName, 'Couldn\'t get language')
+
+          try:
+            subtitles = entry.xpath("report:attributes/report:attribute[@type='Subtitles']", namespaces=NEWZBIN_NAMESPACE)
+            for subtitle in subtitles:
+              thisEntry.subtitles.append(subtitle.text)
+            log(7, funcName, 'Subtitles:', thisEntry.subtitles)
+          except:
+            log(7, funcName, 'Couldn\'t get subtitles')
 
           allEntries.append(thisEntry)
     
@@ -207,7 +256,8 @@ def getMovieVideoFilters():
   #ShowBluRay = Prefs['ShowBluRayMovies']
 
   # Easy use case: All formats to be displayed, no more processing needed
-  if (ShowNonHD and Show720p and Show1080i and Show1080p and ShowBluRay):
+#  if (ShowNonHD and Show720p and Show1080i and Show1080p and ShowBluRay):
+  if (ShowNonHD and Show720p and Show1080i and Show1080p):
     log(3, funcName + "All video formats selected, done")
     return MovieFormat
 

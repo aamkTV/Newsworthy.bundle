@@ -4,12 +4,16 @@ from nntpclient import nntpClient
 from queue import Queue
 from configuration import *
 from time import sleep
+import sys
 
 ############################################################################################################
 # Recently Done
 # * Updated to Framework 2 (v1.2)
 # + Fixed Newzbin for Newzbin2 compatibility
 # + Integrated James Clarke's download code.  SABnzbd is no longer needed.
+# + Fixed TV metadata
+# + Fixed Movie Metadata
+#
 #
 # Pre-Plex/Nine (Framework 2):
 # + Added search by video quality, set in preferences
@@ -70,8 +74,10 @@ def Start():
 
   global nntp
   global loggedInNNTP
-  nntp=nntpClient()
-  log(4, funcName, 'NNTP Username, password, host, port, ssl:', nntp.nntpUsername, nntp.nntpPassword, nntp.nntpHost, nntp.nntpPort, nntp.nntpSSL)
+  
+  nntp=nntpClient(app)
+
+  log(8, funcName, 'NNTP Username, password, host, port, ssl:', nntp.nntpUsername, nntp.nntpPassword, nntp.nntpHost, nntp.nntpPort, nntp.nntpSSL)
   try:
     loggedInNNTP = nntp.connect()
   except:
@@ -85,7 +91,7 @@ def Start():
 ####################################################################################################
 import newzbin as nzbNewzbin
 import nzbmatrix as nzbNzbmatrix
-def setNZBService():
+def setNZBService(retType='bool'): #valid return types: bool and object
   funcName='[setNZBService]'
   global nzb
   global loggedInNZBService
@@ -105,7 +111,7 @@ def setNZBService():
     nzbServiceInfo.newzbinUsername = getConfigValue(theDict=nzbConfigDict, key='newzbinUsername')
     log(6, funcName, 'newzbin Username:', nzbServiceInfo.newzbinUsername)
     nzbServiceInfo.newzbinPassword = getConfigValue(theDict=nzbConfigDict, key='newzbinPassword')
-    log(6, funcName, 'newzbin Password:', nzbServiceInfo.newzbinPassword)
+    log(8, funcName, 'newzbin Password:', nzbServiceInfo.newzbinPassword)
   elif serviceName=='NZBMatrix':
     log(4, funcName, 'importing nzbmatrix')
     #import nzbmatrix as nzb
@@ -115,26 +121,32 @@ def setNZBService():
     nzbServiceInfo.nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
     log(6, funcName, 'nzbMatrix Username:', nzbServiceInfo.nzbmatrixUsername)
     nzbServiceInfo.nzbmatrixPassword = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword')
-    log(6, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
+    log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
     ##nzbServiceInfo.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
   log(4, funcName, serviceName, 'imported.')
-  return serviceImported
+  if retType == 'bool': return serviceImported
+  if retType == 'object': return nzb
 
 ####################################################################################################
 def ValidatePrefs():
   funcName = "[ValidatePrefs] "
-  log(2, funcName + "Validating Preferences and reloading main menu")
-  setNZBService()
-  global loggedInNZBService
-  loggedInNZBService = False
-  loggedInNZBService = nzb.performLogin(nzbServiceInfo, forceRetry=True)
-  
+  log(2, funcName + "Restarting Newzworthy Plugin")
   global app
-  app = NewzworthyApp()
+  try:
+    app.nntpManager.disconnect_all()
+  except:
+    pass
+  Core.runtime.restart()
 
 ####################################################################################################
-def RestartNW(sender, key):
-  Plugin.Restart()
+@route(routeBase + 'restart')
+def RestartNW():
+  global app
+  try:
+    app.nntpManager.disconnect_all()
+  except:
+    pass
+  Core.runtime.restart()
   
 ####################################################################################################
 @route(routeBase + 'MainMenu')
@@ -144,12 +156,14 @@ def MainMenu():
   global nzbServiceInfo
   global loggedInNNTP
   global nntp
+  global app
+  global nzb
   
   # Set the right NZB servers to use
   if not loggedInNZBService:
     log(3, funcName, 'Not logged into NZB Service, doing it now')
     # try to log into the NZB Service...
-    setNZBService()
+    nzb = setNZBService(retType='object')
     loggedInNZBService = nzb.performLogin(nzbServiceInfo, forceRetry=True)
     log(3, funcName + "nzb login:", str(loggedInNZBService))
   else:
@@ -158,7 +172,7 @@ def MainMenu():
   if not loggedInNNTP:
     log(3, funcName, 'Not logged into NNTP, doing it now')
     # try to log into the nntp service
-    nntp = nntpClient()
+    nntp = nntpClient(app)
     try:
       loggedInNNTP = nntp.connect()
     except:
@@ -227,7 +241,7 @@ def diagsMenu():
   log(5, funcName, 'Showing "Show All Dicts"')
   dir.Append(Function(DirectoryItem(showAllDicts, title="Show All Dicts", contextKey="a", thumb=R('search.png'), contextArgs={})))
   #log(7, funcName, 'Show restart plugin')
-  #dir.Append(Function(DirectoryItem(RestartNW, title='Restart Newzworthy Plugin', contextKey="a", contextArgs={}), key="a"))
+  dir.Append(DirectoryItem(Route(RestartNW), title='Restart Newzworthy Plugin', contextKey="a", contextArgs={}))
   return dir
   
 ####################################################################################################
@@ -413,7 +427,7 @@ def BrowseTVFavorites(sender, days=TVSearchDays_Default):
 ####################################################################################################
 def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0), offerExpanded=False, expandedSearch=False, page=1, invertVideoQuality=False, allOneTitle=False):
   funcName = "[SearchTV] "
-
+  global nzb
   # Determine if we will be consolidating duplicates to a single entry
   if allOneTitle:
     consolidateDuplicates = False
@@ -499,23 +513,24 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
             #log(5, funcName, "checking len(moreInfoURL):", len(thisArticle.moreInfoURL))
             if len(thisArticle.moreInfoURL)>1:
               log(5, funcName, "think we have a meaningful URL:'" + thisArticle.moreInfoURL + "' Count of 'episodes':", thisArticle.moreInfoURL.count("episodes"))
-              if thisArticle.moreInfoURL.count("episodes") > 0: #don't mess with whole season dvd rips
+              if thisArticle.moreInfoURL.count("episodes") > 0  or thisArticle.moreInfoURL.count("search.php?search=") > 0: #don't mess with whole season dvd rips
                 log(4, funcName, 'found more than 0 episodes in the url:', thisArticle.moreInfoURL)
                 tvRageDict = getTVRage_metadata(thisArticle.moreInfoURL)
-                thisArticle.title = tvRageDict["title"]
-                thisArticle.summary = thisArticle.size + "\n\n" + tvRageDict["summary"]
-                thisArticle.subtitle = "S" + tvRageDict["season"] + "E" + tvRageDict["episode"] + " (" + tvRageDict["airDate"] + ")"
-                thisArticle.rating = tvRageDict["votes"]
-                thisArticle.thumb = tvRageDict["thumb"]
-                thisArticle.duration = tvRageDict["duration"]
+                if tvRageDict:
+                  if tvRageDict["title"] != "" : thisArticle.title = tvRageDict["title"]
+                  thisArticle.summary = thisArticle.size + "\n\n" + tvRageDict["summary"]
+                  thisArticle.subtitle = "S" + tvRageDict["season"] + "E" + tvRageDict["episode"] + " (" + tvRageDict["airDate"] + ")"
+                  thisArticle.rating = tvRageDict["votes"]
+                  thisArticle.thumb = tvRageDict["thumb"]
+                  thisArticle.duration = tvRageDict["duration"]
               else:
-                log(4, funcName, 'Did not find keyword "episodes" in', thisArticle.moreInfoURL, 'for:', thisArticle.title)
+                log(4, funcName, 'Did not find keyword "episodes" or "search.php" in', thisArticle.moreInfoURL, 'for:', thisArticle.title)
             else:
               log(5, funcName, 'No TVRageURL found for:', thisArticle.title)
 
 
             log(4, funcName, "Adding \"" + thisArticle.title + "\" to the dir")
-            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
+            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
 #             articleItem = Function(DirectoryItem(Article, thisArticle.title, thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID) #title2=title, fanart=fanart, thumb=thumb, rating=rating, duration=duration)
 
             # Add the item to the persistent-ish cache
@@ -526,7 +541,7 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
           else: # The nzbID is already in the dict, therefore we can just pull it from cache
             log(4, funcName, "Cached: Adding \"" + nzbItems[thisArticle.nzbID].title + "\" from the cache.")
             thisArticle = nzbItems[thisArticle.nzbID]
-            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
+            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
 #            dir.Append(Function(DirectoryItem(Article, thisArticle.title, thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID))
 
         # Now handle the case where we want to consolidate dupes and we have more than one entry.
@@ -596,7 +611,7 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   except:
     pass
 
-  dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary), key="a"))
+  dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb), key="a"))
   #art = Function(DirectoryItem(StupidUselessFunction, subtitle=theArticle.subtitle))
   if app.queue.getItem(theArticle.nzbID) == False:
     dir.Append(DirectoryItem(Route(AddReportToQueue, nzbID=theArticle.nzbID), title=L('ITM_QUEUE'), thumb=R("plus_green.png")))
@@ -656,7 +671,7 @@ def manageCompleteQueue():
   funcName = "[manageCompleteQueue]"
 
   # Some cleanup to avoid errors
-  if app.stream_initiator != None: app.stream_initiator = None
+  #if app.stream_initiator != None: app.stream_initiator = None
 
 
   dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=10)
@@ -675,7 +690,7 @@ def manageCompleteQueue():
 #       )
       dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=L('DL_COMPLETE'), summary=item.report.summary))
   else:
-    return MessageContainer("Nothing Completed", "There are no completed items to display")   
+    dir.Append(DirectoryItem(Route(StupidUselessFunction, key=''), title="No Completed Downloads", subtitle="There are no completed items to display", summary=""))   
   return dir
 ####################################################################################################
 @route(routeBase + 'manageQueue')
@@ -684,21 +699,24 @@ def manageQueue():
 
   # First check if there's anything in the queue
   log(6, funcName, 'Items in download queue:', len(app.queue.downloadableItems))
-  if len(app.queue.downloadableItems) == 0:
-    return MessageContainer('Nothing in queue', 'There are no items in the queue')
+#  if len(app.queue.downloadableItems) == 0:
+#    return MessageContainer('Nothing in queue', 'There are no items in the queue')
     #MainMenu()
   
   # Some cleanup to avoid errors
-  if app.stream_initiator != None: app.stream_initiator = None
+  #log(6, funcName, 'Clearing app.stream_initiator:', (app.stream_initiator != None))
+  #if app.stream_initiator != None: app.stream_initiator = None
   
   # Display the contents of the queue
   log(7, funcName, 'Creating dir')
-  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=5)
+  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=2)
   if app.downloader.notPaused:
     dir.Append(DirectoryItem(Route(pauseDownload), title="Pause Downloading", subtitle="Temporarily suspend all downloads", summary=""))
   else:
     dir.Append(DirectoryItem(Route(resumeDownload), title="Resume Downloading", subtitle="You temporarily suspended downloads.  Resume them now.", summary=""))
-    
+  
+  if len(app.queue.downloadableItems) == 0:
+    dir.Append(DirectoryItem(Route(StupidUselessFunction, key=""), title="0 items in download queue", subtitle="Nothing to download", summary=""))
   log(7, funcName, 'Looking at each item in queue')
   for item in app.queue.downloadableItems:
     subtitle = ' '
@@ -754,46 +772,46 @@ def manageQueue():
   return dir
 
 ####################################################################################################
-@route(routeBase + 'queue/{id}')
-def QueueItemPopup(id):
-  c = MediaContainer()
-  item = app.queue.getItem(id)
-#   for item in app.queue.items:
-#     if item.id == id: break
-#     else: item = None
-
-  if not item: return MessageContainer ("Item Not found", "Item not found")
-
-  if item.play_ready:# and not item.complete: #Don't stream a fully downloaded file, that's stupid
-    c.Append(
-      VideoItem(
-        Route(StartStreamAction, id=item.id),
-        title = L('PLAY_DL')
-      ))
-  
-#   if item.complete:
+# @route(routeBase + 'queue/{id}')
+# def QueueItemPopup(id):
+#   c = MediaContainer()
+#   item = app.queue.getItem(id)
+# #   for item in app.queue.items:
+# #     if item.id == id: break
+# #     else: item = None
+# 
+#   if not item: return MessageContainer ("Item Not found", "Item not found")
+# 
+#   if item.play_ready:# and not item.complete: #Don't stream a fully downloaded file, that's stupid
 #     c.Append(
 #       VideoItem(
-#         Redirect(item.fullPathToMediaFile),
-#         title=L('PLAY_DL')#item.report.title))
-#       )
-#     )
-
-  if not item.complete:
-    f = CancelDownloadAction
-    title_key = 'CANCEL_DL'
-  else:
-    f = RemoveItemAction
-    title_key = 'REMOVE_DL'
-
-  c.Append(
-    DirectoryItem(
-      Route(f, id=item.id),
-      title = L(title_key)
-    ))
-
-  return c
-
+#         Route(StartStreamAction, id=item.id),
+#         title = L('PLAY_DL')
+#       ))
+#   
+# #   if item.complete:
+# #     c.Append(
+# #       VideoItem(
+# #         Redirect(item.fullPathToMediaFile),
+# #         title=L('PLAY_DL')#item.report.title))
+# #       )
+# #     )
+# 
+#   if not item.complete:
+#     f = CancelDownloadAction
+#     title_key = 'CANCEL_DL'
+#   else:
+#     f = RemoveItemAction
+#     title_key = 'REMOVE_DL'
+# 
+#   c.Append(
+#     DirectoryItem(
+#       Route(f, id=item.id),
+#       title = L(title_key)
+#     ))
+# 
+#   return c
+#
 ####################################################################################################
 # These functions are related specifically to the queue
 ####################################################################################################
@@ -803,12 +821,10 @@ def StartStreamAction(id):
   funcName = "[StartStreamAction]"
   item = app.queue.getItem(id)
   log(6, funcName, "Got id:", item.id)
-#   for item in app.queue.items:
-#     if item.id == id: break
-#     else: item = None
 
   if not item: return MessageContainer("No Item", "Did not find item")
   if item.play_ready:
+    #a = Redirect(item.stream)
     return Redirect(item.stream)
 
 @route(routeBase + 'pauseDownload')
@@ -816,14 +832,14 @@ def pauseDownload():
   funcName = "[pauseDownload]"
   log(5, funcName, "Pausing downloader client tasks")
   app.downloader.stop_download_thread()
-  return True
+  #return True
 
 @route(routeBase + 'resumeDownload')
 def resumeDownload():
   funcName = "[resumeDownload]"
   log(5, funcName, "Resuming downloader client tasks")
   app.downloader.restart_download_thread()
-  return True
+  #return True
 
 @route(routeBase + 'queue/{id}/cancel')
 def CancelDownloadAction(id):
@@ -849,7 +865,7 @@ def CancelDownloadAction(id):
     app.downloader.notPaused = True
     app.downloader.start_download_thread()
   
-  return True
+  #return True
 
 
 @route(routeBase + 'queue/{id}/remove')
@@ -1007,11 +1023,15 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
           if not thisArticle.nzbID in nzbItems:
 
             if thisArticle.moreInfo != "": # and Prefs.Get('searchMetadata'):
+              log(7, funcName, 'Getting imdb metadata:', thisArticle.moreInfo)
               thisArticle.imdbDict = getIMDB_metadata(thisArticle.moreInfo)
+              log(8, funcName, 'Got imdb data:', thisArticle.imdbDict)
+              log(7, funcName, 'Getting tmdb metadata:', thisArticle.moreInfo)
               thisArticle.tmdbDict = tmdb_getMetaData(thisArticle.moreInfo)
+              log(7, funcName, 'Getting mpdbThumb:', thisArticle.moreInfo)
               thisArticle.mpdbThumb = movieposterdb_getThumb(thisArticle.moreInfo)
               try:
-                thisArticle.description = imdbDict["desc"] #.encode('utf-8')
+                thisArticle.description = thisArticle.imdbDict["desc"]#.encode('utf-8')
                 try:
                   if thisArticle.description == "":
                     thisArticle.description = tmdbDict["desc"]
@@ -1020,7 +1040,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
               except:
                 pass
               try:
-                thisArticle.thumb = imdbDict["thumb"]
+                thisArticle.thumb = thisArticle.imdbDict["thumb"]
                 if thisArticle.thumb == "":
                   thisArticle.thumb = mpdbThumb
                   if thisArticle.thumb == "":
@@ -1028,7 +1048,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
               except:
                 pass
               try:
-                thisArticle.duration = str(int(imdbDict["duration"]))
+                thisArticle.duration = str(int(thisArticle.imdbDict["duration"]))
               except:
                 pass
               try:
@@ -1036,9 +1056,32 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
               except:
                 pass
               try:
-                thisArticle.rating = imdbDict["rating"]
+                thisArticle.rating = thisArticle.imdbDict["rating"]
               except:
                 thisArticle.rating = ""
+              
+#               summary = ''
+#               if thisArticle.videosource != '':
+#                 summary = 'Video Source: ' + thisArticle.videosource
+#               if len(thisArticle.videoformat)>=1:
+#                 if summary != '':
+#                   summary += '\n'
+#                 summary += 'Video Formats: ' + ', '.join(str(i) for i in thisArticle.videoformat)
+#               if len(thisArticle.audioformat)>=1:
+#                 if summary != '':
+#                   summary += '\n'
+#                 summary += 'Audio Formats: ' + ', '.join(str(i) for i in thisArticle.audioformat)
+#               if len(thisArticle.language)>=1:
+#                 if summary != '':
+#                   summary += '\n'
+#                 summary += 'Languages: ' + ', '.join(str(i) for i in thisArticle.language)
+#               if len(thisArticle.subtitles)>=1:
+#                 if summary != '':
+#                   summary += '\n'
+#                 summary += 'Subtitles: ' + ', '.join(str(i) for i in thisArticle.subtitles)
+#               if summary != '':
+#                 summary += '\n'
+#               summary += thisArticle.description
 
 #            articleItem = Function(DirectoryItem(Article, thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.description, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size), newzbinID=thisArticle.nzbID, title2=thisArticle.title, fanart=thisArticle.fanart, thumb=thisArticle.thumb, rating=thisArticle.rating, duration=thisArticle.duration)
 
@@ -1049,7 +1092,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
             thisArticle = nzbItems[thisArticle.nzbID]
             #Log("Pulled article from cache.")
 
-          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.description, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size))
+          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size))
 #           articleItem = Function(DirectoryItem(Article, thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.description, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID)
 
 #           if thisArticle.fanart != "":
@@ -1083,14 +1126,42 @@ def getTVRage_metadata(tvRageUrl):
   #  returnDict["duration"] = int(XML.ElementFromURL("http://services.tvrage.com/feeds/showinfo.php?sid=" + tvRageUrl.split('/')[4].replace("id-","")).xpath("//Runtime")[0]) * 60 * 1000
   #except:
   returnDict["duration"] = 60 * 60 * 1000 # use an hour (in seconds) for the duration as a default
+  #HTTP.ClearCache()
+  log(7, funcName, 'Cache cleared, doing the http request')
   try:
-    tvRageXML = HTML.ElementFromURL(tvRageUrl, errors="ignore")
-    if tvRageUrl.count("episodes") > 0:
+    tvRageResp = HTTP.Request(tvRageUrl)
+    log(7, funcName, 'Request completed, converting to HTML')
+    tvRageHTML = str(tvRageResp.content)
+    log(7, funcName, 'Converted to HTML, converting to XML')
+    #log(8, funcName, 'tvRageHTML:', tvRageHTML)
+    tvRageXML = HTML.ElementFromString(tvRageHTML)
+    log(7, funcName, 'Converted to HTML, trying to find metadata')
+    #log(8, funcName, 'tvRage.XML:', HTML.StringFromElement(tvRageXML))
+    log(7, funcName, 'tvRageUrl.count("episodes"):',tvRageUrl.count("episodes"), 'tvRageURL.count("search.php?search="):', tvRageUrl.count("search.php?search="))
+    
+    #tvRageXML = HTML.ElementFromURL(tvRageUrl, errors="ignore")
+    log(7, funcName, 'tvRageUrl.count("episodes"):',tvRageUrl.count("episodes"), 'tvRageURL.count("search.php"):', tvRageUrl.count("search.php?search="))
+    if tvRageUrl.count("episodes") > 0 or tvRageUrl.count("search.php?search=") > 0:
+      log(7, funcName, 'More than one episodes or search in', tvRageUrl)
       try:
-        summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td")[0].text_content().split("');")[-1]
+        #summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td")[0].text_content().split("');")[-1]
+        summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td")[0].text_content()
+        #summary = summary.replace('.Source:', ".\n\nSource:")
+        ads = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td//script")
+        for ad in ads:
+          log(8, funcName, 'summary:', summary)
+          log(8, funcName, 'ad:', ad)
+          summary = summary.replace(ad.text_content(), '')
+        summary = summary.replace('.Source:', ".\n\nSource:")
       except:
         try:
-          summary = tvRageXML.xpath("//tr[@id='ieconn3']/td/table/tr/td/table/tr/td")[0].text_content().split("');")[-1]
+          summary = tvRageXML.xpath("//tr[@id='ieconn3']/td/table/tr/td/table/tr/td")[0].text_content()
+          ads = tvRageXML.xpath("//tr[@id='ieconn3']/td/table/tr/td/table/tr/td//script")
+          for ad in ads:
+            log(8, funcName, 'summary:', summary)
+            log(8, funcName, 'ad:', ad)
+            summary = summary.replace(ad.text_content(), '')
+          summary = summary.replace('.Source:', ".\n\nSource:")
         except:
           summary = ""
       returnDict["summary"] = summary
@@ -1131,14 +1202,18 @@ def getTVRage_metadata(tvRageUrl):
         votes = ""
       returnDict["votes"] = votes
       try:
-        thumb = tvRageXML.xpath("//div[@align='right']/img[@border='0']")[0].get("src")
+        #thumb = tvRageXML.xpath("//div[@align='right']/img[@border='0']")[0].get("src")
+        thumb = tvRageXML.xpath("//tr[@id='ieconn2']//img")[0].get("src")
+        log(6, funcName, 'Got this thumb url:', thumb)
       except:
         thumb = ""
       returnDict["thumb"] = thumb
       #try:
       #  duration = tvRageXML.xpath("id('iconn2')/td/table[2]/tbody/tr/td[1]/table/tbody/tr[8]/td[2]")
   except:
-    Log("TVRage lookup failed.")
+    error = sys.exc_info()
+    log(6, funcName, error)
+    log(4, funcName, "TVRage lookup failed.")
     returnDict["seriesName"] = ""
     returnDict["summary"] = ""
     returnDict["title"] = ""
@@ -1147,6 +1222,7 @@ def getTVRage_metadata(tvRageUrl):
     returnDict["airDate"] = ""
     returnDict["votes"] = ""
     returnDict["thumb"] = ""
+    return False
 
   #Log(returnDict)
   return returnDict
@@ -1160,13 +1236,13 @@ def getIMDB_metadata(imdbID,getDuration=True,getSynopsis=True,getThumb=True,getR
     resp = HTTP.Request(url, cacheTime=longCacheTime, immediate=True)
     log(8, funcName, "RequestURL:", url, "... Response:", resp)
   except:
-    #print("IMDB page fetch error")
-    #Log(url)
+    log(3, funcName, "IMDB page fetch error:", url)
     return returnDict
   if resp == None:
-    #Log(url)
+    log(3, funcName, 'No response at', url)
     return returnDict
 
+  log(8, funcName, 'getting duration:', getDuration)
   if getDuration:
     try:
       findStr = "<h5>Runtime:</h5>"
@@ -1184,23 +1260,31 @@ def getIMDB_metadata(imdbID,getDuration=True,getSynopsis=True,getThumb=True,getR
     except:
       duration = 0
     returnDict["duration"] = duration
+    log(8, funcName, "duration:", returnDict["duration"])
 
+  log(8, funcName, 'getting synopsis:', getSynopsis)
   if getSynopsis:
     returnDict["desc"] = getIMDB_synopsis(imdbID, resp)
-    #Log(returnDict["desc"])
+    log(8, funcName, 'synopsis:', returnDict["desc"])
+    
+  log(8, funcName, 'getting thumb:', getThumb)
   if getThumb:
     if resp.content.count("Poster Not Submitted") == 0:
       respElements = HTML.ElementFromString(resp)
       try:
-        thumb = respElements.xpath("//div[@class='photo']/a/img")[0].get("src")
-        thumb = thumb[:thumb.find("_SX")] + "_SX500_SY500_" + ".jpg"
+        #thumb = respElements.xpath("//div[@class='photo']/a/img")[0].get("src")
+        #thumb = thumb[:thumb.find("_SX")] + "_SX500_SY500_" + ".jpg"
+        thumb = respElements.xpath("//td[@id='img_primary']//img")[0].get("src")
+        log(8, funcName, 'thumb:', thumb)
       except:
-        Log("Problem with IMDB thumb retrieval.")
+        log(5, funcName, "Problem with IMDB thumb retrieval.", url)
         thumb = ""
     else:
       thumb = ""
     returnDict["thumb"] = thumb
+    log(8, funcName, 'thumb:', returnDict['thumb'])
 
+  log(8, funcName, 'checking rating:', getRating)
   if getRating:
     if resp.content.find("<small>(awaiting") > 0:
       imdbRating = ""
@@ -1212,19 +1296,29 @@ def getIMDB_metadata(imdbID,getDuration=True,getSynopsis=True,getThumb=True,getR
       except:
         return returnDict
     returnDict["rating"] = imdbRating
+    log(8, funcName, 'rating:', returnDict['rating'])
+  #log(7, funcName, 'Returing IMDB Metadata:', returnDict)
   return returnDict
 
 def getIMDB_synopsis(imdbID, imdbTitlePage):
+  funcName = '[getIMDB_synopsis]'
   url = "http://www.imdb.com/title/" + imdbID + "/plotsummary"
+  plotSummaryExists = False
   #Log(url)
   try:
     resp = HTTP.Request(url, cacheTime=longCacheTime)
+    plotSummaryExists = True
   except:
-    Log("failed to get imdb plotsummary page")
-    return ""
-  try:
-    desc = HTML.ElementFromString(resp).xpath("//p[@class='plotpar']")[0].text #.encode('utf-8')
-  except:
+    log(3, funcName, "failed to get imdb plotsummary page:", url)
+    
+  if plotSummaryExists:
+    try:
+      desc = HTML.ElementFromString(resp).xpath("//p[@class='plotpar']")[0].text_content()#.encode('utf-8')
+      log(8, funcName, 'plot summary desc:', desc)
+    except:
+      plotSummaryExists = False
+  
+  if not plotSummaryExists:
     try:
       x = imdbTitlePage.find("<h5>Plot:</h5>")
       if x > 0:
@@ -1234,6 +1328,7 @@ def getIMDB_synopsis(imdbID, imdbTitlePage):
         desc = ""
     except:
       desc = ""
+  log(8, funcName, 'desc:', desc)
   return desc
 
 def tmdb_getMetaData(imdbID):
@@ -1348,4 +1443,3 @@ def getAllEntriesIDs(title, allEntries):
 
   log(4, funcName, "all IDs:", titleEntries)
   return titleEntries
-

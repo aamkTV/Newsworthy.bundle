@@ -1,5 +1,7 @@
 import re
 import yenc
+import time
+
 YSPLIT_RE = re.compile(r'([a-zA-Z0-9]+)=')
 
 def ySplit(line, splits = None):
@@ -39,6 +41,9 @@ class Decoder(object):
     self.decoded_size = 0
     self.filename = None
     self.finished = Thread.Event()
+    self.data = ''
+    self.parts_received = []
+    self.start_data_queue()
     
   @property
   def complete(self):
@@ -57,14 +62,43 @@ class Decoder(object):
       raise Exception('Parts missing')
       
     data = ''
+    Log('Compiling data')
     for x in range(len(self.parts)):
+      Log('Compiling data part ' + str(x) + ' of ' + str(len(self.parts)))
       data += self.parts[x+1]
       
     return data
+  
+  def start_data_queue(self):
+    Log('Starting data queuing thread')
+    Thread.Create(self.add_part_to_data)
+    
+  def add_part_to_data(self):
+    fname = '[Decoder.add_part_to_data] '
+    #Log(fname + 'Started data queue thread')
+    n=1
+    while True:
+    #while ( n < len(self.parts_received)) and (not self.complete):
+      #Log(fname + 'Waiting for part ' + str(n))
+      if n in self.parts_received:
+        Log(fname + 'Adding part ' + str(n))
+        self.data = self.data + self.parts[n]
+        n += 1
+        #Log(fname + 'Checking if self.complete: ' + str(self.complete))
+        if self.complete and n > len(self.parts_received):
+          #Log(fname + 'Done with adding parts to data')
+          self.finished.set()
+          break
+      else:
+        time.sleep(2)
+    else:
+      #Log(fname + 'Stopped checking for data.  n=' + str(n) + ', len(self.parts_received)=' + str(len(self.parts_received)) + ', self.complete=' + str(self.complete))
+      #Log(fname + 'first test: ' + str(( n < len(self.parts_received))) + ', second test: ' + str(not self.complete))
+      pass
     
   def add_part(self, data):
     data = strip(data)
-    
+    #print(str(data))
     """yCheck from SAB decoder.py"""
     ybegin = None
     ypart = None
@@ -129,7 +163,8 @@ class Decoder(object):
       else:
         if self.total != int(ybegin['total']):
           raise Exception('Part count mismatch')
-          
+    
+    #Log('[Decoder.add_part] self.total: ' + str(self.total))
     # If this post doesn't include the total number of parts, count by size instead
     if self.total_size == 0:
       self.total_size = int(ybegin['size'])
@@ -143,7 +178,9 @@ class Decoder(object):
       if self.filename != ybegin['name']:
         raise Exception('Filename mismatch')
     
+    #Log('[Decoder.add_part] Adding part ' + str(int(yend['part'])) + ' to self.parts')
     self.parts[int(yend['part'])] = decoded_data
+    self.parts_received.append(int(yend['part']))
     
-    if self.complete:
-      self.finished.set()
+    #if self.complete:
+    #  self.finished.set()

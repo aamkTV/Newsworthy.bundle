@@ -11,6 +11,7 @@ class Unpacker(object):
     self.first_part = self.item.nzb.rars[0].name
 
   def get_contents(self):
+    funcName = '[Unpacker.get_contents]'
     info = Helper.Run('unrar', 'l', Core.storage.join_path(self.item.incoming_path, self.first_part))
     info_lines = info.split('\n')
     info_started = False
@@ -23,7 +24,28 @@ class Unpacker(object):
           info_started = True
       elif info_started:
         parts = line.split(' ')
-        contents[parts[1]] = int(parts[2])
+        partIsNum = False
+        partOne = ""
+        size = 0
+        for x in range(len(parts)):
+          log(6, funcName, 'Part being evaluated: "' + str(parts[x]) + '"')
+          if parts[x].isdigit() and len(parts[x]) > 4: #4 digits could be a year e.g. Gremlins 1984
+            partIsNum = True
+            size = int(parts[x])
+            break # by now we got our name and filesize
+          else:
+            if partOne != "":
+              #log(7, funcName, "x=" + str(x), "len(parts):", len(parts))
+              #if x != len(parts):
+              partOne = partOne + " " + parts[x]
+            else:
+              partOne = parts[x]
+          log(6, funcName, 'partOne right now: "' + str(partOne) + '"')
+        log(8, funcName, 'removing extra spaces on the right: "' + str(partOne) + '"')
+        partOne = partOne.rstrip(" ")
+        contents[partOne] = size
+        log(6, funcName, 'contents being returned:"' + str(contents) + '"')
+        #contents[parts[1]] = int(parts[2])
     return contents
     
   def start(self):
@@ -42,6 +64,11 @@ class Unpacker(object):
       'e', '-kb', '-vp', '-o+',
       first_path, out_path
     )
+#     self.proc = Helper.Process(
+#       'unrar',
+#       'e', '-kb', '-vp', '-o+',
+#       ("\"" + first_path + "\""), ("\"" + out_path + "\"")
+#     )
     
     Thread.Create(self.monitor)
     

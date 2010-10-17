@@ -1,9 +1,10 @@
 #from PMS import *
 #from PMS.Objects import *
 #from PMS.Shortcuts import *
-import re, httplib
+import re#, httplib
 from common import *
 
+name = 'NZBMatrix'
 SEARCH_URL = 'http://nzbmatrix.com/nzb-search.php?'
 #NZBM_ROOT = 'http://nzbmatrix.com/nzb.php?category=Movies&sort=1&type=asc&page=0'
 #NZBM_BASE = 'http://nzbmatrix.com'
@@ -187,24 +188,52 @@ def getTVRageURL(searchValue):
   funcName = '[nzbmatrix.getTVRageURL]'
   location = ''
 
-  searchURL = "/search.php?search=" + encodeText(searchValue)
-
-  httpConn = httplib.HTTPConnection("www.tvrage.com")
-  try:
-    log(6, funcName, 'Search URL:', searchURL)
-    httpConn.request(method="GET", url=searchURL)
-    httpResp = httpConn.getresponse()
-    log(6, funcName, 'httpResp.status:',httpResp.status)
-    try:
-      location = httpResp.getheader('location')
-      log(6, funcName, 'httpResp.header[\'location\']', location, ' (length:', len(location) + ")")
-    except:
-      log(6, funcName, 'location not found in response, returning nothing')
-      location = ""
-  except:
-    pass
-
-  return location
+  searchURL = "http://www.tvrage.com/search.php?search=" + encodeText(searchValue)
+  return searchURL
+#  x = HTTP.Request(searchURL)
+#  #log(6, funcName, 'headers.content:', x.content)
+#  log(6, funcName, 'x.headers:', x.headers)
+#  log(6, funcName, 'x.cookies:', HTTP.GetCookiesForURL(".tvrage.com"))
+# 
+#   try:
+#     log(6, funcName, 'Search URL:', searchURL)
+#     headers = HTTP.Request(searchURL).headers
+#     #log(6, funcName, 'Response:', resp.content)
+#     try:
+#       log(6, funcName, 'all headers', headers)
+#       location = headers['location']
+#       log(6, funcName, 'headers[\'location\']', location, ' (length:', len(location) + ")")
+#     except:
+#       log(6, funcName, 'location not found in response, returning nothing')
+#       location = ""
+#   except:
+#     pass
+# 
+#  return location
+####################################################################################################
+# def getTVRageURL(searchValue):
+# 
+#   funcName = '[nzbmatrix.getTVRageURL]'
+#   location = ''
+# 
+#   searchURL = "/search.php?search=" + encodeText(searchValue)
+# 
+#   httpConn = httplib.HTTPConnection("www.tvrage.com")
+#   try:
+#     log(6, funcName, 'Search URL:', searchURL)
+#     httpConn.request(method="GET", url=searchURL)
+#     httpResp = httpConn.getresponse()
+#     log(6, funcName, 'httpResp.status:',httpResp.status)
+#     try:
+#       location = httpResp.getheader('location')
+#       log(6, funcName, 'httpResp.header[\'location\']', location, ' (length:', len(location) + ")")
+#     except:
+#       log(6, funcName, 'location not found in response, returning nothing')
+#       location = ""
+#   except:
+#     pass
+# 
+#   return location
 ####################################################################################################
 def removeExtraWords(value):
   funcName = '[nzbmatrix.removeExtraWords]'

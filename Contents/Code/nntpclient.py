@@ -5,9 +5,36 @@ from common import *
 #from OpenSSL import SSL
 #import socket
 
+class nntpManager(AppService):
+  #AppService __init__ calls this
+  def init(self):
+    self.clients = []
+    
+  def register(self, client):
+    funcName = '[nntpManager.register]'
+    log(7, funcName, 'Registering a client')
+    self.clients.append(client)
+  
+  def deregister(self, client):
+    funcName = '[nntpManager.deregister]'
+    log(7, funcName, 'Deregistering a client')
+    self.clients.remove(client)
+  
+  def __str__(self):
+    return str(self.clients)
+    
+  def disconnect_all(self):
+    funcName = '[nntpManager.disconnect_all]'
+    for client in self.clients:
+      try:
+        client.disconnect()
+      except:
+        log(3, funcName, 'Unable to disconnect a client connection')
+    
 class nntpClient(nntpObj):
-  def __init__(self):
+  def __init__(self, app):
     funcName = '[nntpClient.init]'
+    self.app = app
     self.lock = Thread.Lock()
     if self.nntpSSL:
       log(5, funcName, 'Initializing SSL Socket')
@@ -17,6 +44,7 @@ class nntpClient(nntpObj):
       log(5, funcName, 'Initializing socket')
       self.sock = Network.Socket()
       log(5, funcName, 'Socket initializied')
+    self.app.nntpManager.register(self)
       
   def connect(self):
     funcName='[nntpClient.connect]'
@@ -56,6 +84,7 @@ class nntpClient(nntpObj):
   def disconnect(self):
     #self.sock.disconnect()
     self.sock.close()
+    self.app.nntpManager.deregister(self)
      
   def send_command(self, command, *args):
     self.sock.sendall((command % args) + '\r\n')

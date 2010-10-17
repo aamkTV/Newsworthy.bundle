@@ -18,14 +18,16 @@ class NZFile(object):
     self.name = None
     self.ext = None
     self.articles = []
+    self.size = 0
     
     
     """ Try to find the file's extension """
     
     subject = el.get('subject')
     
-    part = subject[subject.find('"')+1:subject.rfind('"')]
-      
+    #part = subject[subject.find('"')+1:subject.rfind('"')]
+    part = self.determineFileName(subject)
+    
     # Check if there's something that appears to be a file extension
     index = part.rfind('.')
     if index == -1: return
@@ -57,7 +59,40 @@ class NZFile(object):
     for segment_el in ns_xpath(el, 'nzb:segments/nzb:segment'):
       article = NZArticle(segment_el.text, int(segment_el.get('bytes')))
       self.articles.append(article)
-      
+      self.size = self.size + article.size
+  
+  def determineFileName(self, subject):
+    #print "starting"
+    chr = ""
+    filename = ""
+    if subject.find('"')>=0:
+      chr = '"'
+      #print "found quotes"
+      #filename = subject[subject.find('"')+1:subject.rfind('"')]
+    elif subject.find("&quot;")>=0:
+      #print "found \&quot;"
+      chr = "&quot;"
+    elif subject.find("&#34;")>=0:
+      #print "found \&#34;"
+      chr = "&#34;"
+    
+    if chr != "":
+      #filename = subject[subject.find(chr)+(len(chr)):subject.rfind(chr)]
+      a = subject[:subject.rfind(chr)]
+      filename = a[a.rfind(chr)+len(chr):]
+    else:
+      #print ('looking for .')
+      a = subject[:subject.rfind(".")+4]
+      #print "a='" + str(a) + "'"
+      b = a[a.rfind(" ")+1:]
+      #print "b='" + str(b) + "'"
+      if b.count(";"):
+        filename = b[b.find(";")+1:]
+      else:
+        filename = b
+    #print "filename='" + str(filename) + "'"
+    return filename
+    
   def __repr__(self):
     return 'NZFile(%s)' % self.name
     
@@ -85,6 +120,7 @@ class NZFile(object):
 
 class NZB(object):
   def __init__(self, el):
+    funcName = "[nzbf.NZB.__init__]"
     self.rars = []
     self.pars = []
     
@@ -98,6 +134,10 @@ class NZB(object):
       if not file_obj.ext: continue
       
       # See what type of file we have
+      if re.search("[\w._-]sample[\w._-]", file_obj.name):
+        #skipping sample files
+        log(6, funcName, 'skipping sample file:', file_obj.name)
+        continue
       if file_obj.ext == 'rar':
         rars.append(file_obj)
       elif file_obj.ext == 'par2':

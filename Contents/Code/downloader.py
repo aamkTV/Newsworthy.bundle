@@ -118,31 +118,40 @@ class Downloader(AppService):
           item.save()
           file_tasks = []
           log(7, funcName,'All the files to download in this task:',item.nzb.rars)
+          skippedFile = False
           for file_obj in item.nzb.rars:
             #print file_obj
             filename = str(file_obj.name)
             log(7, funcName, "If file isn't already downloaded, we'll download it now:", filename)
             if not item.fileCompleted(filename):
               log(6, funcName, 'Adding a file to file_tasks:', file_obj.name)
-              file_tasks.append(self.download_file(file_obj))
+              file_tasks.append(self.download_file(file_obj, item))
             else:
               log(6, funcName, 'Skipping file, already downloaded:', file_obj.name)
+              skippedFile = True
+          
+          if skippedFile:
+            log(6, funcName, 'File was skipped, start the unpacker')
+            item.unpack(item.nzb.rars[0])
 
           while len(file_tasks) > 0:
             log(6, funcName, 'Number of files in the process:', len(file_tasks))
             log(7, funcName, 'Checking status of file')
             task = file_tasks.pop(0)
-            filename, data = task.result
+            #filename, data = task.result
+            filename = task.result
             log(6, funcName, "Finished downloading", filename)
-            item.add_incoming_file(filename, data)
-          
-          log(7, funcName, 'Setting item.downloading to False')
-          item.downloading = False
-          log(7, funcName, 'Setting item.downloadComplete to True')
-          item.downloadComplete = True
-          item.save()
-          item = False
-          #self.item_queue.remove(item)
+            #item.add_incoming_file(filename, data)
+            item.add_incoming_file(filename)
+            
+          if item.valid:
+            log(7, funcName, 'Setting item.downloading to False')
+            item.downloading = False
+            log(7, funcName, 'Setting item.downloadComplete to True')
+            item.downloadComplete = True
+            item.save()
+            item = False
+            #self.item_queue.remove(item)
           
 #           try:
 #             item = self.app.queue.items.get()#(block = False)
@@ -152,51 +161,68 @@ class Downloader(AppService):
         self.shutdown_clients()
       
       else: #not self.notPaused or item_queue<1
-        log(7, funcName, 'Nothing to download, going to sleep for', SLEEP_TIME)
+        log(7, funcName, 'Nothing to download, going to sleep for', SLEEP_TIME, '.  Active clients:', self.active_clients)
         time.sleep(int(SLEEP_TIME))
   
-  def download_file(self, file_obj):
+  def download_file(self, file_obj, item):
     return self.file_pool.add_task(
       self.download_file_task,
       kwargs = dict(
         file_obj = file_obj,
-      ),
-      important = True
+        item = item
+      )#,important = True
     )    
   
   
   def start_clients(self):
+    funcName = '[downloader.Downloader.start_clients]'
+    log(6, funcName, 'start_clients started')
     Thread.AcquireLock(self.client_lock)
-    for x in range(self.app.num_client_threads):
-      self.client_pool.add_task(self.client_task, important=True)
+    for x in range(self.app.num_client_threads - self.active_clients):
+      self.client_pool.add_task(self.client_task)#, important=True)
+      log(7, funcName, 'added a client_task to the client pool:')
     Thread.ReleaseLock(self.client_lock)
     
   def shutdown_clients(self):
-    Thread.AcquireLock(self.client_lock)
-    for x in range(self.active_clients):
-      self.article_queue.put(None)
-    Thread.ReleaseLock(self.client_lock)
+    pass
+#    Thread.AcquireLock(self.client_lock)
+#    for x in range(self.active_clients):
+#      self.article_queue.put(None)
+#    Thread.ReleaseLock(self.client_lock)
+
+#    for client in self.app.nntpManager.clients:
+#      try:
+#        client.disconnect()
+#      except:
+#        pass
       
   def client_task(self):
     funcName = "[downloader.Downloader.client_task]"
     Thread.AcquireLock(self.client_lock)
     self.active_clients = self.active_clients + 1
-    log(4, funcName, "Starting a client (",self.active_clients,"now running)")
+    funcName = "[downloader.Downloader.client_task " + str(self.active_clients) + "]"
     Thread.ReleaseLock(self.client_lock)
-    #client = nntpClient(self.app)
-    client = nntpClient()
+    client = nntpClient(self.app)
+    #client = nntpClient()
     client.connect()
     
     while self.notPaused:
-      info = self.article_queue.get()
+      log(8, funcName, 'Top of outer loop')
+      try:
+        info = self.article_queue.get(True, 120)
+        #log(7, funcName, 'info:', info)
+      except:
+        log(8, funcName, 'Nothing in the article queue')
+        break
       if not info:
-        log(6, funcName, 'Did not get an article info')
+        log(8, funcName, 'Did not get an article info')
         break
       
-      log(7, funcName, 'Getting file:', info.file_obj.name, ', article:', info.article_obj.article_id)
+      log(8, funcName, 'Getting file:', info.file_obj.name, ', article:', info.article_obj.article_id)
       article = client.get_article(info.article_obj)
       
       if self.notPaused:
+        log(8, funcName, 'top on inner loop')
         info.decoder.add_part(article)
         info.article_obj.complete = True
 ###############################################
@@ -204,7 +230,10 @@ class Downloader(AppService):
 #       if persistentQueuing:
 #         log(6, funcName, 'Finished article:', info.file_obj.name + "." + info.article_obj.article_id, 'removing it from the queue')
 #         self.article_queue.remove(info)
-###############################################      
+###############################################
+        log(8, funcName, 'bottom of inner loop')
+      log(8, funcName, 'bottom of outer loop')
+    log(8, funcName, 'After all loops, next thing is to disconnect clients')
     client.disconnect()
     
     Thread.AcquireLock(self.client_lock)
@@ -213,13 +242,19 @@ class Downloader(AppService):
     Thread.ReleaseLock(self.client_lock)
     
     
-  def download_file_task(self, file_obj):
+  def download_file_task(self, file_obj, item):
     funcName = "[Downloader.download_file_task]"
     log(6, funcName, 'Downloading file:', file_obj.name)
     decoder = Decoder()
     Thread.AcquireLock(self.article_lock)
     for article_obj in file_obj.articles:
       self.article_queue.put(DownloadInfo(file_obj, article_obj, decoder))
+      log(8, funcName, 'self.article_queue.qsize():', self.article_queue.qsize())
     Thread.ReleaseLock(self.article_lock)
     decoder.wait()
-    return (decoder.filename, decoder.decoded_data)
+    log(7, funcName, 'downloaded filename:', decoder.filename)
+    #Core.storage.save(Core.storage.join_path(item.incoming_path, decoder.filename), decoder.decoded_data)
+    Core.storage.save(Core.storage.join_path(item.incoming_path, decoder.filename), decoder.data)
+    log(7, funcName, 'saved file:', decoder.filename)
+    #return (decoder.filename, decoder.decoded_data)
+    return decoder.filename

@@ -5,11 +5,17 @@ import time
 
 ExpandedSearchTimeFactor = 10
 ExpandedSearchMaxResultsFactor = 10
-TVFavesDict = 'TVFavesDict'
-nzbItemsDict = 'nzbItemsDict'
-nzbConfigDict = 'nzbConfigDict'
-nntpConfigDict = 'nntpConfigDict'
-FSConfigDict = 'FSConfigDict'
+TVFavesDictVersion = 1
+nzbItemsDictVersion = 1
+nzbConfigDictVersion = 1
+nntpConfigDictVersion = 1
+FSConfigDictVersion = 1
+
+TVFavesDict = 'TVFavesDict' + '_v' + str(TVFavesDictVersion)
+nzbItemsDict = 'nzbItemsDict' + '_v' + str(nzbItemsDictVersion)
+nzbConfigDict = 'nzbConfigDict' + '_v' + str(nzbConfigDictVersion)
+nntpConfigDict = 'nntpConfigDict' + '_v' + str(nntpConfigDictVersion)
+FSConfigDict = 'FSConfigDict' + '_v' + str(FSConfigDictVersion)
 routeBase = '/video/newzworthy/'
 
 MovieSearchDays_Default = "0" # 0 is a special case, and basically means no filter
@@ -22,7 +28,7 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel=6
+loglevel           = 7
 
 ####################################################################################################
 # loglevels:
@@ -33,6 +39,7 @@ loglevel=6
 # 5: EVEN MORE DEBUG!! - All the recursive stuff you just should never ever want to see!
 # 6: CRAZY LEVELS OF DEBUG!!!! - I had to invent this level because I found even more useless stuff to log!
 # 7: STUPID SHIT BEING LOGGED!!! - Don't use this unless you hate your filesystem and performance!!!!
+# 8: I shouldn't even tell you about this level, but it's nice to know how to see all the HTTP/XML request/responses
 ####################################################################################################
 
 class AppService(object):
@@ -48,6 +55,7 @@ class AppService(object):
     pass
 
 class NWQueue(object):
+  """Used to persist lists using Plex Framework's Dict capability"""
   def __init__(self, name):
     funcName = '[NWQueue.__init__][' + name + ']'
     self.name = name
@@ -202,7 +210,7 @@ class NWQueue(object):
         Dict[self.queueDictName] = []
         Dict[self.dequeuedDictName] = []
         
-        log(6, funcName, 'Saving queue', self.dictName)
+        log(7, funcName, 'Saving queue', self.dictName)
         if self.copyBeforeSave:
           log(7, funcName, 'Duplicating', self.dictName, 'queue')
           queueToSave = []
@@ -215,7 +223,7 @@ class NWQueue(object):
           lastStep = "Saving queue"
           Dict[self.queueDictName] = self.queue
           
-        log(6, funcName, 'Saving dequeue', self.dictName) 
+        log(7, funcName, 'Saving dequeue', self.dictName) 
         if self.copyBeforeSave:
           log(7, funcName, 'Duplicating', self.dictName, 'dequeued')
           dequeuedToSave = []
@@ -245,6 +253,7 @@ class NewzworthyApp(object):
     log(5, funcName, 'importing Queue')
     from queue import Queue
     from unpacker import Unpacker
+    from nntpclient import nntpManager
 
     try:
       self.num_client_threads = int(Dict[nntpConfigDict]['nntpConnections'])
@@ -256,6 +265,7 @@ class NewzworthyApp(object):
     self.downloader = Downloader(self)
     self.unpacker = None
     self.stream_initiator = None
+    self.nntpManager = nntpManager(self)
     #self.service = Service(self)
 
 class article(object):
@@ -276,7 +286,40 @@ class article(object):
     self.moreInfo = ''
     self.sizeMB = ''
     self.description = ''
-    self.subtitle = ''    
+    self.subtitle = ''
+    self.videoformat = []
+    self.genre = []
+    self.language = []
+    self.audioformat = []
+    self.videosource = ''
+    self.groups = []
+    self.subtitles = []
+    
+  @property
+  def attributes_and_summary(self):
+    summary = ''
+    if self.videosource != '':
+      summary = 'Video Source: ' + self.videosource
+    if len(self.videoformat)>=1:
+      if summary != '':
+        summary += '\n'
+      summary += 'Video Formats: ' + ', '.join(str(i) for i in self.videoformat)
+    if len(self.audioformat)>=1:
+      if summary != '':
+        summary += '\n'
+      summary += 'Audio Formats: ' + ', '.join(str(i) for i in self.audioformat)
+    if len(self.language)>=1:
+      if summary != '':
+        summary += '\n'
+      summary += 'Languages: ' + ', '.join(str(i) for i in self.language)
+    if len(self.subtitles)>=1:
+      if summary != '':
+        summary += '\n'
+      summary += 'Subtitles: ' + ', '.join(str(i) for i in self.subtitles)
+    if summary != '':
+      summary += '\n'
+    summary += self.description
+    return summary
 
 class NZBService(object):
   def __init__(self):
@@ -342,11 +385,11 @@ def cleanFSName(value):
   value = value.replace("=","-")
   value = value.replace(",", "_")
   value = value.replace("\|", "_")
-  value = value.replace("(", ".")
-  value = value.replace(")", ".")
-  value = value.replace('\\', ".")
-  value = value.replace('?', '.')
-  value = value.replace(';', '.')
+  value = value.replace("(", "_")
+  value = value.replace(")", "_")
+  value = value.replace('\\', "_")
+  value = value.replace('?', '_')
+  value = value.replace(';', '_')
   value = value.replace('<', '_')
   value = value.replace('>', '_')
   value = value.replace('*', '_')
@@ -355,11 +398,13 @@ def cleanFSName(value):
   value = value.replace('!', '')
   value = value.replace('#', '_')
   value = value.replace('^', '_')
-  value = value.replace("[", ".")
-  value = value.replace("]", '.')
-  value = value.replace("{", '.')
-  value = value.replace("}", '.')
+  value = value.replace("[", "_")
+  value = value.replace("]", '_')
+  value = value.replace("{", '_')
+  value = value.replace("}", '_')
   value = value.replace("~", '_')
+  value = value.replace("#", '_')
+  value = value.replace("~", "_")
   value = value.encode('ascii', 'ignore')
   return value
   

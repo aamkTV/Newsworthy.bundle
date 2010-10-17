@@ -25,7 +25,9 @@
 	<key>PlexFrameworkVersion</key>
 	<string>2</string>
 	<key>PlexPluginLogLevel</key>
-	<string>Debug</string>
+	<string>Info</string>
+	<key>PlexClientPlatforms</key>
+    <string>MacOSX,iOS</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>PlexPluginCodePolicy</key>
