@@ -1,15 +1,15 @@
 {
   "TITLE"                   : "Newzworthy",
   
-  "MENU_QUEUE"              : "My Queue",
-  "MENU_BOOKMARKS"          : "My Bookmarks",
   "MENU_SEARCH"             : "Search",
   "MENU_BROWSE"             : "Browse",
   
   "DL_QUEUED"               : "Download Queued",
   "DL_DOWNLOADING"          : "Downloading",
+  "DL_DOWNLOADING_PLAY"		: "Downloading.  ",
   "DL_PREPARING"            : "Preparing Download...",
-  "DL_PLAY_READY"           : "Play (downloading in background)", 
+  "DL_PLAY_READY"           : "Ready to play while downloading", 
+  "DL_PLAY_DL"				: "Play while downloading",
   "DL_COMPLETE"             : "Download Complete",
   
   "DL_SUM_PR_MIN_SECS"      : "Ready to play in %d minute %d seconds",
@@ -18,15 +18,13 @@
   "DL_SUM_PR_FEW_SECS"      : "Ready to play in a few seconds",
   
   "CANCEL_DL"               : "Cancel Download",
-  "REMOVE_DL"               : "Remove",
+  "REMOVE_DL"               : "Delete",
   "PLAY_DL"                 : "Play",
   
-  "BM_ADD_TO_QUEUE"         : "Move Bookmark to My Queue",
-  "BM_REMOVE"               : "Remove Bookmark",
-  
   "ITM_QUEUE"               : "Add to Download Queue",
-  "ITM_BOOKMARK"            : "Bookmark",
   
   "Q_PAUSE"					: "Pause Newzworthy Downloading",
   "Q_RESUME"				: "Resume Newzworthy Downloading",
+  
+  "NW_UPDATE_AVAIL"			: "Newzworthy Update Available",
 }

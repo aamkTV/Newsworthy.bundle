@@ -100,7 +100,7 @@ class NZFile(object):
   def percent_done(self):
     total = self.total_bytes
     done = self.downloaded_bytes        
-    return int((float(done) / float(total)) * 100)
+    return ((float(done) / float(total)) * 100)
     
   @property
   def total_bytes(self):
@@ -123,6 +123,7 @@ class NZB(object):
     funcName = "[nzbf.NZB.__init__]"
     self.rars = []
     self.pars = []
+    self.total_bytes = 0
     
     rars = []
     rnns = []
@@ -145,6 +146,18 @@ class NZB(object):
       else:
         rnns.append(file_obj)
         
+      # Keep track of the total file size
+      self.total_bytes = self.total_bytes + file_obj.total_bytes
+        
     # Sort the rars and add them to the list
     self.rars.extend(Util.ListSortedByAttr(rars, 'name'))
     self.rars.extend(Util.ListSortedByAttr(rnns, 'name'))
+    
+  def downloaded_bytes(self):
+    funcName = '[nzbf.NZB.downloaded_bytes]'
+    downloaded = 0
+    for file in self.rars:
+      downloaded += file.downloaded_bytes
+    return downloaded
+    
+  

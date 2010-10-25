@@ -81,7 +81,7 @@ class Decoder(object):
     #while ( n < len(self.parts_received)) and (not self.complete):
       #Log(fname + 'Waiting for part ' + str(n))
       if n in self.parts_received:
-        Log(fname + 'Adding part ' + str(n))
+        #Log(fname + 'Adding part ' + str(n))
         self.data = self.data + self.parts[n]
         n += 1
         #Log(fname + 'Checking if self.complete: ' + str(self.complete))

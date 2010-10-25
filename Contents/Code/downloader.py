@@ -9,7 +9,6 @@ class DownloadInfo(object):
     self.article_obj = article_obj
     self.decoder = decoder
 
-
 class Downloader(AppService):
   def init(self):
     self.client_pool = Core.runtime.create_taskpool(self.app.num_client_threads)
@@ -90,12 +89,7 @@ class Downloader(AppService):
     while self.notPaused:
       log(7, funcName, 'length of downloadingItems:', len(self.app.queue.downloadingItems))
       log(7, funcName, 'length of downloadQueue:', len(self.app.queue.downloadQueue))
-      #log(6, funcName, 'resuming:', resuming)
-    #while len(self.item_queue)>=1:
-      #log(6, funcName, "running")
-      #if self.notPaused and (len(self.item_queue)>0 or resume):
       while self.notPaused and len(self.app.queue.downloadableItems)>0:
-#      while self.notPaused and ( (len(self.app.queue.downloadingItems) + len(self.app.queue.downloadQueue))>0 or resuming ):
         if len(self.app.queue.downloadingItems) > 0:
           item = self.app.queue.downloadingItems[0]
           log(6, funcName, 'Resuming, getting items that began downloading but did not complete:', item.id)

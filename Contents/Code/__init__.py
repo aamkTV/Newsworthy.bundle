@@ -188,7 +188,8 @@ def MainMenu():
   cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
   dir = MediaContainer(contextMenu=cm, noCache=True, viewGroup="Lists")
   
-
+  if app.updater.updateNeeded:
+    dir.Append(DirectoryItem(Route(Update), title=L('NW_UPDATE_AVAIL'), summary=app.updater.stableUpdateURL, thumb=R('update.png')))
   # Sub-menu for TV
   if loggedInNZBService and loggedInNNTP:
     log(5, funcName, 'Logged in, showing TV & Movie menu options')
@@ -196,8 +197,8 @@ def MainMenu():
     # Sub-menu for Movies
     dir.Append(Function(DirectoryItem(BrowseMovies, title=("Go to Movies"), thumb=R('movies.jpg'),contextKey="a", contextArgs={})))
     # Special case just for searching by newzbinID
-    if(bool(Prefs['ShowSearchByNewzbinID']) and Prefs['NZBService']=="Newzbin"):
-      dir.Append(Function(InputDirectoryItem(Search, title=("Search by Newzbin ID"), prompt=("Search by Newzbin ID"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="99"))
+    #if(bool(Prefs['ShowSearchByNewzbinID']) and Prefs['NZBService']=="Newzbin"):
+    #  dir.Append(Function(InputDirectoryItem(Search, title=("Search by Newzbin ID"), prompt=("Search by Newzbin ID"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="99"))
   else:
     log(5, funcName, 'Not logged in, showing option to update preferences')
     if not loggedInNZBService:
@@ -232,18 +233,31 @@ def diagsMenu():
   cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
   dir = MediaContainer(contextMenu=cm, noCache=True, viewGroup="Lists")
 
-  log(4, funcName, 'Showing diagnostic menu options')
-  log(5, funcName, 'Showing "Clear the cache"')
+  log(7, funcName, 'Showing diagnostic menu options')
+  log(7, funcName, 'Showing update option')
+  dir.Append(DirectoryItem(Route(Update), title="Update Newzworthy", thumb=R('update.png')))
+  log(7, funcName, 'Showing "Clear the cache"')
   dir.Append(Function(DirectoryItem(clearArticleDict, title="Clear the cache", thumb=R('trashcan.png'), contextKey="a", contextArgs={})))
-  log(5, funcName, 'Showing "Delete all Downloaded Files"')
+  log(7, funcName, 'Showing "Delete all Downloaded Files"')
   dir.Append(Function(DirectoryItem(deleteAllDownloads, title="Delete all downloaded files", thumb=R('trashcan.png'), contextKey="a", contextArgs={})))
   dir.Append(DirectoryItem(Route(clearAllQueues), title="Clear all the queues", thumb=R('trashcan.png')))
-  log(5, funcName, 'Showing "Show All Dicts"')
+  log(7, funcName, 'Showing "Show All Dicts"')
   dir.Append(Function(DirectoryItem(showAllDicts, title="Show All Dicts", contextKey="a", thumb=R('search.png'), contextArgs={})))
   #log(7, funcName, 'Show restart plugin')
   dir.Append(DirectoryItem(Route(RestartNW), title='Restart Newzworthy Plugin', contextKey="a", contextArgs={}))
   return dir
-  
+
+####################################################################################################
+@route(routeBase + "Update")
+def Update():
+  funcName = '[Update]'
+  global app
+  if app.updater.updateNeeded:
+    #app.updater.updateToStable()
+    message = "Update available, download at: " + app.updater.stableUpdateURL
+  else:
+    message = "No Updates Available"
+  return MessageContainer("Updater", message)
 ####################################################################################################
 def clearArticleDict(sender):
   funcName = "[clearArticleDict]"
@@ -518,7 +532,7 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
                 tvRageDict = getTVRage_metadata(thisArticle.moreInfoURL)
                 if tvRageDict:
                   if tvRageDict["title"] != "" : thisArticle.title = tvRageDict["title"]
-                  thisArticle.summary = thisArticle.size + "\n\n" + tvRageDict["summary"]
+                  thisArticle.description = "Size: " + thisArticle.size + "\n\n" + tvRageDict["summary"]
                   thisArticle.subtitle = "S" + tvRageDict["season"] + "E" + tvRageDict["episode"] + " (" + tvRageDict["airDate"] + ")"
                   thisArticle.rating = tvRageDict["votes"]
                   thisArticle.thumb = tvRageDict["thumb"]
@@ -604,32 +618,44 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
     log(3, funcName, theArticle.title, "is an unknown media type (i.e. not a TV show nor a movie")
     title2 = theArticle.title
 
-  dir = MediaContainer(viewGroup='Lists', title2=title2, noCache=True, noHistory=False, autoRefresh=1)
+  dir = MediaContainer(viewGroup='Details', title2=title2, noCache=True, noHistory=False, autoRefresh=1)
   try:
     if theArticle.fanart != "":
       dir.art = theArticle.fanart
   except:
     pass
 
-  dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb), key="a"))
   #art = Function(DirectoryItem(StupidUselessFunction, subtitle=theArticle.subtitle))
   if app.queue.getItem(theArticle.nzbID) == False:
-    dir.Append(DirectoryItem(Route(AddReportToQueue, nzbID=theArticle.nzbID), title=L('ITM_QUEUE'), thumb=R("plus_green.png")))
+    #dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle), key="a"))
+    dir.Append(DirectoryItem(Route(AddReportToQueue, nzbID=theArticle.nzbID), title=L('ITM_QUEUE'), thumb=theArticle.thumb, subtitle=theArticle.title, summary=theArticle.attributes_and_summary))
 
-  if app.downloader.notPaused:
-    dir.Append(DirectoryItem(Route(pauseDownload), title=L('Q_PAUSE'), subtitle="Temporarily suspend all downloads", summary="", thumb=R('pause_red.png')))
-  else:
-    dir.Append(DirectoryItem(Route(resumeDownload), title=L('Q_RESUME'), subtitle="You temporarily suspended downloads.  Resume them now.", summary="", thumb=R('pause_green.png')))
-  
+  #########################################################################
+  # Pausing is causing problems.
+  # Commenting this out but not removing it so we can re-enable it
+  # someday.
+  #
+  #if app.downloader.notPaused:
+  #  dir.Append(DirectoryItem(Route(pauseDownload), title=L('Q_PAUSE'), subtitle="Temporarily suspend all downloads", summary="", thumb=R('pause_red.png')))
+  #else:
+  #  dir.Append(DirectoryItem(Route(resumeDownload), title=L('Q_RESUME'), subtitle="You temporarily suspended downloads.  Resume them now.", summary="", thumb=R('pause_green.png')))
+  #########################################################################
   if app.queue.getItem(theArticle.nzbID) != False:
     item = app.queue.getItem(theArticle.nzbID)
+    dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle), key="a"))
+
     if item.downloading:
       #If it's ready to play, give the user the option here
+      progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
+      speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
+      rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
+      progress_speed = progress + '\n' + speed
+      rtp_progress_speed = rtp + '\n' + progress_speed
       if item.play_ready:
-        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_READY'), subtitle='Play while downloading', thumb=R('play_yellow.png')))
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_DL'), subtitle=theArticle.subtitle, thumb=R('play_yellow.png'), infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(progress_speed + '\n' + theArticle.summary)))
       else:
-        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_DOWNLOADING'), thumb=R('download_green.png'), subtitle="Downloading, not ready to play yet"))
-      dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), subtitle='Cancel and remove item'))
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_DOWNLOADING_PLAY') + ReadyToPlayText(item.play_ready_time), thumb=R('download_green.png'), subtitle="Downloading enough to start playing", infoLabel=(('%.1f' % item.play_ready_percent)+'%'), summary=rtp_progress_speed))
+      dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), subtitle='Cancel and delete progress'))
     elif item.complete:
       #Show the option to remove the file
       dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
@@ -678,17 +704,7 @@ def manageCompleteQueue():
   
   if len(app.queue.completedItems) > 0:
     for item in app.queue.completedItems:
-#       dir.Append(
-#         PopupDirectoryItem(
-#           Route(
-#             QueueItemPopup, id=item.id
-#           ),
-#           title=item.report.title,
-#           subtitle=L('DL_COMPLETE'),
-#           summary=('Complete: ' + str(item.complete))
-#         )
-#       )
-      dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=L('DL_COMPLETE'), summary=item.report.summary))
+      dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary))
   else:
     dir.Append(DirectoryItem(Route(StupidUselessFunction, key=''), title="No Completed Downloads", subtitle="There are no completed items to display", summary=""))   
   return dir
@@ -709,109 +725,84 @@ def manageQueue():
   
   # Display the contents of the queue
   log(7, funcName, 'Creating dir')
-  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=2)
-  if app.downloader.notPaused:
-    dir.Append(DirectoryItem(Route(pauseDownload), title="Pause Downloading", subtitle="Temporarily suspend all downloads", summary=""))
-  else:
-    dir.Append(DirectoryItem(Route(resumeDownload), title="Resume Downloading", subtitle="You temporarily suspended downloads.  Resume them now.", summary=""))
+  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=1)
+  #if app.downloader.notPaused:
+  #  dir.Append(DirectoryItem(Route(pauseDownload), title="Pause Downloading", subtitle="Temporarily suspend all downloads", summary=""))
+  #else:
+  #  dir.Append(DirectoryItem(Route(resumeDownload), title="Resume Downloading", subtitle="You temporarily suspended downloads.  Resume them now.", summary=""))
   
   if len(app.queue.downloadableItems) == 0:
     dir.Append(DirectoryItem(Route(StupidUselessFunction, key=""), title="0 items in download queue", subtitle="Nothing to download", summary=""))
   log(7, funcName, 'Looking at each item in queue')
   for item in app.queue.downloadableItems:
+    log(7, funcName, 'Examining:', item.report.title)
     subtitle = ' '
     summary = ' '
-    log(7, funcName, 'Examining:', item.report.title)
-    if item.complete:
-      log(7, funcName, 'item.complete:', item.complete)
-      subtitle = L('DL_COMPLETE')
-      summary = item.report.summary
+    progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
+    speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
+    progress_speed = progress + '\n' + speed
+    #if item.complete:
+    #  log(7, funcName, 'item.complete:', item.complete)
+    #  subtitle = L('DL_COMPLETE')
+    #  summary = progress_speed + "\n" + item.report.summary
 
-    elif item.play_ready:
+    if item.play_ready:
       log(7, funcName, 'item.play_ready:', item.play_ready)
       subtitle = L('DL_PLAY_READY')      
-      summary = 'Progress: ' + str(len(item.incoming_files)) + ' out of ' + str(len(item.nzb.rars)) + ' RARs completed downloading.\n\n Downloaded bytes: ' + str(item.downloaded_bytes) + '\n\nTotal Bytes: ' + str(item.total_bytes) + '\n\n Speed: ' + str(item.speed) 
+      summary = progress_speed
 
     elif item.downloading:
       log(7, funcName, 'item.downloading:', item.downloading)
-      tm = item.play_ready_time
       log(7, funcName, 'item.play_ready_time:', item.play_ready_time)
       # All these strings can be found in the Strings folder of the bundle
+      
+      tm = item.play_ready_time
       if tm == 0:
         subtitle = L('DL_PLAY_READY')
-        summary = 'Ready to Play \n\n Progress: ' + str(len(item.incoming_files)) + ' out of ' + str(len(item.nzb.rars)) + ' RARs completed downloading.\n\n Downloaded bytes: ' + str(item.downloaded_bytes) + '\n\nTotal Bytes: ' + str(item.total_bytes) + '\n\n Speed: ' + str(item.speed)
+        summary = progress_speed
       else:
-        subtitle = L('DL_DOWNLOADING')
-        if tm < 5:
-          summary = L('DL_SUM_PR_FEW_SECS')
-        elif tm > 60:
-          mins = tm / 60
-          secs = tm % 60
-          if mins == 1:
-            key = 'DL_SUM_PR_MIN_SECS'
-          else:
-            key = 'DL_SUM_PR_MINS_SECS'
-          summary = F(key, mins, secs)
-        else:
-          summary = F('DL_SUM_PR_SECS', tm)
+#         subtitle = L('DL_DOWNLOADING')
+#         if tm < 3:
+#           ttp = L('DL_SUM_PR_FEW_SECS')
+#         elif tm > 60:
+#           mins = tm / 60
+#           secs = tm % 60
+#           if mins == 1:
+#             key = 'DL_SUM_PR_MIN_SECS'
+#           else:
+#             key = 'DL_SUM_PR_MINS_SECS'
+#           ttp = F(key, mins, secs)
+#         else:
+#           ttp = F('DL_SUM_PR_SECS', tm)
+        ttp = ReadyToPlayText(tm)
+        summary += ttp + "\n" + progress_speed
 
     else:
       subtitle = L('DL_QUEUED')
+      #summary = item.report.summary
+    summary += "\n" + item.report.summary
     log(7, funcName, 'Queue item:', item.report.title+': subtitle:', subtitle, 'summary:', summary)
     log(7, funcName, 'Found in queue:', item)
-#     dir.Append(
-#       PopupDirectoryItem(
-#         Route(QueueItemPopup, id=item.id),
-#         title=item.report.title,
-#         subtitle=subtitle,
-#         summary=summary
-#         )
-#       )
+    
     dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=subtitle, summary=summary))
 
   return dir
 
-####################################################################################################
-# @route(routeBase + 'queue/{id}')
-# def QueueItemPopup(id):
-#   c = MediaContainer()
-#   item = app.queue.getItem(id)
-# #   for item in app.queue.items:
-# #     if item.id == id: break
-# #     else: item = None
-# 
-#   if not item: return MessageContainer ("Item Not found", "Item not found")
-# 
-#   if item.play_ready:# and not item.complete: #Don't stream a fully downloaded file, that's stupid
-#     c.Append(
-#       VideoItem(
-#         Route(StartStreamAction, id=item.id),
-#         title = L('PLAY_DL')
-#       ))
-#   
-# #   if item.complete:
-# #     c.Append(
-# #       VideoItem(
-# #         Redirect(item.fullPathToMediaFile),
-# #         title=L('PLAY_DL')#item.report.title))
-# #       )
-# #     )
-# 
-#   if not item.complete:
-#     f = CancelDownloadAction
-#     title_key = 'CANCEL_DL'
-#   else:
-#     f = RemoveItemAction
-#     title_key = 'REMOVE_DL'
-# 
-#   c.Append(
-#     DirectoryItem(
-#       Route(f, id=item.id),
-#       title = L(title_key)
-#     ))
-# 
-#   return c
-#
+def ReadyToPlayText(tm):
+  ttp = ''
+  if tm < 3:
+    ttp = L('DL_SUM_PR_FEW_SECS')
+  elif tm > 60:
+    mins = tm / 60
+    secs = tm % 60
+    if mins == 1:
+      key = 'DL_SUM_PR_MIN_SECS'
+    else:
+      key = 'DL_SUM_PR_MINS_SECS'
+    ttp = F(key, mins, secs)
+  else:
+    ttp = F('DL_SUM_PR_SECS', tm)
+  return ttp
 ####################################################################################################
 # These functions are related specifically to the queue
 ####################################################################################################
@@ -1059,31 +1050,6 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
                 thisArticle.rating = thisArticle.imdbDict["rating"]
               except:
                 thisArticle.rating = ""
-              
-#               summary = ''
-#               if thisArticle.videosource != '':
-#                 summary = 'Video Source: ' + thisArticle.videosource
-#               if len(thisArticle.videoformat)>=1:
-#                 if summary != '':
-#                   summary += '\n'
-#                 summary += 'Video Formats: ' + ', '.join(str(i) for i in thisArticle.videoformat)
-#               if len(thisArticle.audioformat)>=1:
-#                 if summary != '':
-#                   summary += '\n'
-#                 summary += 'Audio Formats: ' + ', '.join(str(i) for i in thisArticle.audioformat)
-#               if len(thisArticle.language)>=1:
-#                 if summary != '':
-#                   summary += '\n'
-#                 summary += 'Languages: ' + ', '.join(str(i) for i in thisArticle.language)
-#               if len(thisArticle.subtitles)>=1:
-#                 if summary != '':
-#                   summary += '\n'
-#                 summary += 'Subtitles: ' + ', '.join(str(i) for i in thisArticle.subtitles)
-#               if summary != '':
-#                 summary += '\n'
-#               summary += thisArticle.description
-
-#            articleItem = Function(DirectoryItem(Article, thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.description, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size), newzbinID=thisArticle.nzbID, title2=thisArticle.title, fanart=thisArticle.fanart, thumb=thisArticle.thumb, rating=thisArticle.rating, duration=thisArticle.duration)
 
             nzbItems[thisArticle.nzbID] = thisArticle
             saveDict = True
@@ -1093,16 +1059,10 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
             #Log("Pulled article from cache.")
 
           dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size))
-#           articleItem = Function(DirectoryItem(Article, thisArticle.title, subtitle=thisArticle.reportAge, summary=thisArticle.description, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID)
-
-#           if thisArticle.fanart != "":
-#             dir.art = ""
-#             articleItem.art = thisArticle.fanart
-# 
-#           dir.Append(articleItem)
+    
     if saveDict:
-      #Dict[nzbItemsDict] = nzbItems
-      pass
+      Dict[nzbItemsDict] = nzbItems
+      #pass
 
   if (len(dir)+dupesFound)>=nzb.RESULTS_PER_PAGE:
     #Maybe we have more results, since newzbin only returns 100 at a time
@@ -1127,7 +1087,7 @@ def getTVRage_metadata(tvRageUrl):
   #except:
   returnDict["duration"] = 60 * 60 * 1000 # use an hour (in seconds) for the duration as a default
   #HTTP.ClearCache()
-  log(7, funcName, 'Cache cleared, doing the http request')
+  #log(7, funcName, 'Cache cleared, doing the http request')
   try:
     tvRageResp = HTTP.Request(tvRageUrl)
     log(7, funcName, 'Request completed, converting to HTML')
@@ -1145,9 +1105,9 @@ def getTVRage_metadata(tvRageUrl):
       log(7, funcName, 'More than one episodes or search in', tvRageUrl)
       try:
         #summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td")[0].text_content().split("');")[-1]
-        summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td")[0].text_content()
+        summary = tvRageXML.xpath("//tr[@id='ieconn2']/td/table//table//td")[0].text_content()
         #summary = summary.replace('.Source:', ".\n\nSource:")
-        ads = tvRageXML.xpath("//tr[@id='ieconn2']/td/table/tr/td/table/tr/td//script")
+        ads = tvRageXML.xpath("//tr[@id='ieconn2']/td/table//table//td//script")
         for ad in ads:
           log(8, funcName, 'summary:', summary)
           log(8, funcName, 'ad:', ad)
@@ -1155,8 +1115,8 @@ def getTVRage_metadata(tvRageUrl):
         summary = summary.replace('.Source:', ".\n\nSource:")
       except:
         try:
-          summary = tvRageXML.xpath("//tr[@id='ieconn3']/td/table/tr/td/table/tr/td")[0].text_content()
-          ads = tvRageXML.xpath("//tr[@id='ieconn3']/td/table/tr/td/table/tr/td//script")
+          summary = tvRageXML.xpath("//tr[@id='ieconn3']/td/table//table//td")[0].text_content()
+          ads = tvRageXML.xpath("//tr[@id='ieconn3']/td/table//table//td//script")
           for ad in ads:
             log(8, funcName, 'summary:', summary)
             log(8, funcName, 'ad:', ad)
@@ -1164,6 +1124,7 @@ def getTVRage_metadata(tvRageUrl):
           summary = summary.replace('.Source:', ".\n\nSource:")
         except:
           summary = ""
+      log(8, funcName, 'final summary:', summary)
       returnDict["summary"] = summary
       try:
         seriesName = tvRageXML.xpath("//font[@size='3']/b")[0].text_content()

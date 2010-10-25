@@ -114,24 +114,26 @@ class MediaItem(object):
   
   @property
   def total_bytes(self):
-    rars = self.nzb.rars[0]
-    totalBytes = rars.size
-    #totalBytes = 0
-    #for file in self.nzb.rars:
-    #  totalBytes = totalBytes + file.size
-    return totalBytes
+    return self.nzb.total_bytes
   
   @property
   def downloaded_bytes(self):
-    rar = self.nzb.rars[0]
-    return rar.downloaded_bytes
+    return self.nzb.downloaded_bytes()
   
   @property
+  def percent_complete(self):
+    return ((float(self.downloaded_bytes)/float(self.total_bytes))*100)
+    
+  @property
   def speed(self):
+    funcName = '[Queue.MediaItem.speed]'
     delta = Datetime.Now() - self.download_start_time
+    log(7, funcName, 'delta:', delta)
     try:
-      bps = float(self.downloaded_bytes) - float(delta.seconds)
+      log(7, funcName, 'downloaded_bytes:', self.downloaded_bytes, "delta.seconds:", delta.seconds)
+      bps = float(self.downloaded_bytes) / float(delta.seconds)
     except:
+      log(3, funcName, 'Error calculating download speed')
       bps = 1
     return bps
   
@@ -151,22 +153,22 @@ class MediaItem(object):
       log(7, funcName, 'self.download_start_time not set')
       return
     
-#    rar = self.nzb.rars[0]
-#     total = rar.total_bytes
-#     done = rar.downloaded_bytes
-#     remaining = total - done
-#     delta = Datetime.Now() - self.download_start_time
+    rar = self.nzb.rars[0]
+    total = rar.total_bytes
+    done = rar.downloaded_bytes
+    remaining = total - done
+    delta = Datetime.Now() - self.download_start_time
 #     try:
 #       bps = float(done) / float(delta.seconds)
 #     except:
 #       bps = 1
 #     
-#     try:
-#       secs_left = int(float(remaining) / bps)
-#     except:
-#       secs_left = 999999
-#     log(7, funcName, 'seconds left:', secs_left)
-    return self.secs_left
+    try:
+      secs_left = int(float(remaining) / self.speed)
+    except:
+      secs_left = 999999
+    log(7, funcName, 'seconds left:', secs_left)
+    return secs_left
   
   @property
   def fullPathToMediaFile(self):
@@ -228,17 +230,11 @@ class MediaItem(object):
         filesize = self.files[self.mediaFileName]
         #filesize = None
       log(6, funcName, "initiating Stream.LocalFile with mediaFile:", mediaFile, "and moredata:", (not self.complete), "and size:", filesize)
-#             app.stream_initiator = Stream.LocalFile(
-#               Core.storage.join_path(self.completed_path, name),
-#               more_data_coming = (not self.complete),
-#               size = filesize
-#             )
       app.stream_initiator = Stream.LocalFile(
 	    mediaFile,
 	    size = filesize
       )
       log (6, funcName, "initiated stream")
-      #break
     log(6, funcName, "returning stream_initiator:", app.stream_initiator)
     return app.stream_initiator
   

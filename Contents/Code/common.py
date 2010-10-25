@@ -5,6 +5,7 @@ import time
 
 ExpandedSearchTimeFactor = 10
 ExpandedSearchMaxResultsFactor = 10
+
 TVFavesDictVersion = 1
 nzbItemsDictVersion = 1
 nzbConfigDictVersion = 1
@@ -28,7 +29,7 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel           = 7
+loglevel           = 6
 
 ####################################################################################################
 # loglevels:
@@ -254,6 +255,7 @@ class NewzworthyApp(object):
     from queue import Queue
     from unpacker import Unpacker
     from nntpclient import nntpManager
+    from updater import Updater
 
     try:
       self.num_client_threads = int(Dict[nntpConfigDict]['nntpConnections'])
@@ -266,6 +268,7 @@ class NewzworthyApp(object):
     self.unpacker = None
     self.stream_initiator = None
     self.nntpManager = nntpManager(self)
+    self.updater = Updater()
     #self.service = Service(self)
 
 class article(object):
@@ -273,7 +276,6 @@ class article(object):
     self.newzbinID = ''
     self.mediaType = ''
     self.title = ''
-    self.summary = ''
     self.duration = ''
     self.thumb = ''
     self.rating = ''
@@ -295,6 +297,9 @@ class article(object):
     self.groups = []
     self.subtitles = []
     
+  @property
+  def summary(self):
+    return self.description
   @property
   def attributes_and_summary(self):
     summary = ''
@@ -413,6 +418,26 @@ def cleanFSName(value):
 def StupidUselessFunction(key, sender='nothing'):
   # A noop function, just for creating "blank" context menus
   return True
+
+####################################################################################################
+def convert_bytes(bytes):
+  bytes = float(bytes)
+  if bytes >= 1099511627776:
+    terabytes = bytes / 1099511627776
+    size = '%.2fT' % terabytes
+  elif bytes >= 1073741824:
+    gigabytes = bytes / 1073741824
+    size = '%.2fG' % gigabytes
+  elif bytes >= 1048576:
+    megabytes = bytes / 1048576
+    size = '%.2fM' % megabytes
+  elif bytes >= 1024:
+    kilobytes = bytes / 1024
+    size = '%.2fK' % kilobytes
+  else:
+    size = '%.2fb' % bytes
+  return size
+
 
 ####################################################################################################
 # def bool(value):

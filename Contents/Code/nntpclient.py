@@ -5,6 +5,8 @@ from common import *
 #from OpenSSL import SSL
 #import socket
 
+DOWNLOAD_MEASURE_TIME = 1 # Number of seconds over which to average download speeds
+
 class nntpManager(AppService):
   #AppService __init__ calls this
   def init(self):
@@ -30,6 +32,13 @@ class nntpManager(AppService):
         client.disconnect()
       except:
         log(3, funcName, 'Unable to disconnect a client connection')
+  
+  @property
+  def speed(self):
+    speed = 0
+    for client in self.clients:
+      speed += client.speed
+    return speed
     
 class nntpClient(nntpObj):
   def __init__(self, app):
@@ -45,6 +54,10 @@ class nntpClient(nntpObj):
       self.sock = Network.Socket()
       log(5, funcName, 'Socket initializied')
     self.app.nntpManager.register(self)
+    self.speed = 0
+    self.downloaded_bytes = 0
+    self.start_download_time = Datetime.Now()
+    self.finish_download_time = None
       
   def connect(self):
     funcName='[nntpClient.connect]'
@@ -104,8 +117,18 @@ class nntpClient(nntpObj):
     
       lines = []
       data = ''
+      #self.downloaded_bytes = 0
+
       while True:
         chunk = self.sock.recv(32768)
+        self.finish_download_time = Datetime.Now()
+        self.downloaded_bytes = self.downloaded_bytes + len(chunk)
+        log(7, funcName, 'elapsed time:', ((self.finish_download_time - self.start_download_time).seconds), 'downloaded bytes:', self.downloaded_bytes)
+        if ((self.finish_download_time - self.start_download_time).seconds) >= DOWNLOAD_MEASURE_TIME:
+          self.speed = float(self.downloaded_bytes) / float((self.finish_download_time - self.start_download_time).seconds)
+          log(7, funcName, 'speed:', self.speed)
+          self.start_download_time = Datetime.Now()
+          self.downloaded_bytes = 0
         data += chunk
         new_lines = data.split('\r\n')
         data = new_lines.pop()
