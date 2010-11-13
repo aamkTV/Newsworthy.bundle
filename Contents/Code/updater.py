@@ -2,7 +2,17 @@ class Updater(object):
   def __init__(self):
     self.versionCheckURL = "http://www.newzworthy.info/updater/versioncheck.php"
     self.bundleName = "Newzworthy.bundle"
-    self.version  = .25
+    self.version  = .3
+    #######################
+    #
+    # Next version requires a new version of media items with the following new attributes:
+    # self.recoverable
+    # self.recovery_complete
+    # self.failed_articles
+    # self.repair_percent
+    #
+    # TODO: Write a migration function
+    ########################
     self.serverJSON = self.serverData()
   
   @property
@@ -73,13 +83,24 @@ class Updater(object):
     downloadedFile = self.downloadStable(self.updateDir)
     log(3, funcName, 'downloaded file:', downloadedFile)
     
-    unzipFolder = Core.storage.join_path(self.updateDir, self.unzipFoldername(downloadedFile))
+    ###########################################################
+    # Skipping this and trying to unzip over itself instead.
+    #
+    # unzipFolder = Core.storage.join_path(self.updateDir, self.unzipFoldername(downloadedFile))
     # drop the .zip and create a folder for the unzipped files
-    self.unzipUpdate(downloadedFile, unzipFolder)
-    
+    # self.unzipUpdate(downloadedFile, unzipFolder)
+    #
     # Get a list of the files downloaded and unzipped
-    self.updateFiles(unzipFolder)
+    # self.updateFiles(unzipFolder)
+    ###########################################################
     
+    ###########################################################
+    # Unzipping directly over the current plugin contents
+    # 
+    unzipFolder = Core.storage.join_path(self.pluginContentsDir)
+    self.unzipUpdate(downloadedFile, unzipFolder)
+    #
+    ###########################################################
   def unzipUpdate(self, pathToFile, pathToUpdate):
     funcName = '[Updater.unzipUpdate]'
     info = Helper.Run('unzip','-o', pathToFile, '-d', pathToUpdate)
@@ -95,7 +116,7 @@ class Updater(object):
       else:
         dir += token + "/"
     
-    dir += "Plug-ins/" + self.bundleName + "/Contents"
+    dir += "Plug-ins/" + self.bundleName + "/Contents/Test"
     return dir
   
   def updateFiles(self, pathToFiles):

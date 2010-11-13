@@ -11,6 +11,7 @@ nzbItemsDictVersion = 1
 nzbConfigDictVersion = 1
 nntpConfigDictVersion = 1
 FSConfigDictVersion = 1
+mediaItemsQueueVersion = ''
 
 TVFavesDict = 'TVFavesDict' + '_v' + str(TVFavesDictVersion)
 nzbItemsDict = 'nzbItemsDict' + '_v' + str(nzbItemsDictVersion)
@@ -29,7 +30,10 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel           = 6
+loglevel           = 7
+
+#For testing purposes only
+test_article_failure = []
 
 ####################################################################################################
 # loglevels:
@@ -40,8 +44,12 @@ loglevel           = 6
 # 5: EVEN MORE DEBUG!! - All the recursive stuff you just should never ever want to see!
 # 6: CRAZY LEVELS OF DEBUG!!!! - I had to invent this level because I found even more useless stuff to log!
 # 7: STUPID SHIT BEING LOGGED!!! - Don't use this unless you hate your filesystem and performance!!!!
-# 8: I shouldn't even tell you about this level, but it's nice to know how to see all the HTTP/XML request/responses
+# 8: I shouldn't even tell you about this level, but it's nice to know how to see some of the HTTP/XML request/responses
 ####################################################################################################
+class nntpException(Exception):
+  def __init__(self, mesg, id):
+    self.mesg = mesg
+    self.id = id
 
 class AppService(object):
   def __init__(self, app):
@@ -245,7 +253,6 @@ class NWQueue(object):
         log(7, funcName, 'Setting lastSave time')
         self.lastSave = time.time()
 
-
 class NewzworthyApp(object):
   def __init__(self):
     funcName = "[common.NewzWorthyApp.__init__]"
@@ -253,7 +260,7 @@ class NewzworthyApp(object):
     from downloader import Downloader
     log(5, funcName, 'importing Queue')
     from queue import Queue
-    from unpacker import Unpacker
+    from unpacker import Unpacker, UnpackerManager
     from nntpclient import nntpManager
     from updater import Updater
 
@@ -265,7 +272,8 @@ class NewzworthyApp(object):
     self.queue = Queue(self)
     log(4, funcName, 'Initializing Downloader')
     self.downloader = Downloader(self)
-    self.unpacker = None
+    self.unpacker_manager = UnpackerManager(self)
+    self.recoverer = None
     self.stream_initiator = None
     self.nntpManager = nntpManager(self)
     self.updater = Updater()
@@ -303,24 +311,39 @@ class article(object):
   @property
   def attributes_and_summary(self):
     summary = ''
-    if self.videosource != '':
-      summary = 'Video Source: ' + self.videosource
-    if len(self.videoformat)>=1:
-      if summary != '':
-        summary += '\n'
-      summary += 'Video Formats: ' + ', '.join(str(i) for i in self.videoformat)
-    if len(self.audioformat)>=1:
-      if summary != '':
-        summary += '\n'
-      summary += 'Audio Formats: ' + ', '.join(str(i) for i in self.audioformat)
-    if len(self.language)>=1:
-      if summary != '':
-        summary += '\n'
-      summary += 'Languages: ' + ', '.join(str(i) for i in self.language)
-    if len(self.subtitles)>=1:
-      if summary != '':
-        summary += '\n'
-      summary += 'Subtitles: ' + ', '.join(str(i) for i in self.subtitles)
+    try:
+      if self.videosource != '':
+        summary = 'Video Source: ' + self.videosource
+    except:
+      pass
+    try:
+      if len(self.videoformat)>=1:
+        if summary != '':
+          summary += '\n'
+        summary += 'Video Formats: ' + ', '.join(str(i) for i in self.videoformat)
+    except:
+      pass
+    try:
+      if len(self.audioformat)>=1:
+        if summary != '':
+          summary += '\n'
+        summary += 'Audio Formats: ' + ', '.join(str(i) for i in self.audioformat)
+    except:
+      pass
+    try:
+      if len(self.language)>=1:
+        if summary != '':
+          summary += '\n'
+        summary += 'Languages: ' + ', '.join(str(i) for i in self.language)
+    except:
+      pass
+    try:
+      if len(self.subtitles)>=1:
+        if summary != '':
+          summary += '\n'
+        summary += 'Subtitles: ' + ', '.join(str(i) for i in self.subtitles)
+    except:
+      pass
     if summary != '':
       summary += '\n'
     summary += self.description

@@ -147,6 +147,7 @@ def RestartNW():
   except:
     pass
   Core.runtime.restart()
+  return MessageContainer("Restarted", "Newzworthy is restarting")
   
 ####################################################################################################
 @route(routeBase + 'MainMenu')
@@ -645,21 +646,39 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
     dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle), key="a"))
 
     if item.downloading:
-      #If it's ready to play, give the user the option here
-      progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
-      speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
-      rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
-      progress_speed = progress + '\n' + speed
-      rtp_progress_speed = rtp + '\n' + progress_speed
-      if item.play_ready:
-        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_DL'), subtitle=theArticle.subtitle, thumb=R('play_yellow.png'), infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(progress_speed + '\n' + theArticle.summary)))
-      else:
-        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_DOWNLOADING_PLAY') + ReadyToPlayText(item.play_ready_time), thumb=R('download_green.png'), subtitle="Downloading enough to start playing", infoLabel=(('%.1f' % item.play_ready_percent)+'%'), summary=rtp_progress_speed))
+      # One way to display all text if an item is still downloading
+      overall_progress = progressText(item)
+      if item.play_ready and not item.failing:
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_DL'), subtitle=theArticle.subtitle, thumb=R('play_yellow.png'), infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary)))
+      elif not item.play_ready and not item.failing:
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=(L('DL_DOWNLOADING_PLAY') + L('DL_RTP') + TimeText(item.play_ready_time)), thumb=R('download_green.png'), subtitle="Downloading enough to start playing", infoLabel=(('%.1f' % item.play_ready_percent)+'%'), summary=overall_progress))
+      elif item.failing: #item.failing==True
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_DAMAGED'), thumb=R('download_green.png'), subtitle="Damaged files, can't play", infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary)))
+      # Cancel download option
       dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), subtitle='Cancel and delete progress'))
     elif item.complete:
+      if item.failing:
+        try:
+          if not item.recovery_complete:
+            dir.Append(DirectoryItem(Route(Recover, nzbID=item.id), title="Recover"))
+        except:
+          dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
+      else:
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
       #Show the option to remove the file
-      dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
       dir.Append(DirectoryItem(Route(RemoveItemAction, id=item.id), title=L('REMOVE_DL'), thumb=R('trashcan.png')))
+    elif not item.downloading and not item.complete and item.failing:
+      # Show recovery status (hopefully)
+      if not item.recoverable and item.recovery_complete:
+        # The file is not recoverable
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_NOT_RECOVERABLE'), thumb=R('thumbs-down.png'), subtitle="Files damaged beyond repair"))
+        dir.Append(DirectoryItem(Route(RemoveItemAction, id=item.id), title=L('REMOVE_DL'), thumb=R('trashcan.png')))
+      else:# item.recoverable and not item.recovery_complete:
+        if item.repair_percent == 0:
+          # Still evaluating recoverability
+          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_RECOVERING'), thumb=R('analyzing.png'), subtitle='Analyzing file for recoverability'))
+        else:
+          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=F('DL_RECOVERING_PCT', item.repair_percent), thumb=R('thumbs-up.png'), subtitle='Repairing files'))
     else: #Must be queued for downloading
       dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_QUEUED'), thumb=R('download_green.png'), subtitle="Download queued"))
       dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png')))
@@ -673,6 +692,51 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   #dir.Append(addToQueue)
   return dir
 
+####################################################################################################
+def progressText(item):
+  funcName = '[progressText]'
+  overall_progress = ''
+  if item.downloading:
+    #If it's ready to play, give the user the option here
+    log(7, funcName, 'progress')
+    progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
+    log(7, funcName, 'speed')
+    try:
+      speed = 'Latest Speed: ' + str(convert_bytes(app.nntpManager.speed)) + '\nAverage Speed: ' + str(convert_bytes(item.speed))
+      progress_speed = progress + '\n' + speed
+    except:
+      progress_speed = progress
+    log(7, funcName, 'Ready to play')
+    rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
+    damage = "***" + L('DL_DAMAGE_RECOVERY_NOTICE') + "***" + '\n'
+    rtp_progress_speed = rtp + '\n' + progress_speed
+    #log(7, funcName, 'incoming files:', len(item.incoming_files), 'nzb rars:', len(item.nzb.rars))
+    log(7, funcName, 'rar progress')
+    rar_progress = F('DL_RAR_PROGRESS', len(item.incoming_files), len(item.nzb.rars))
+    if Prefs['ShowRARProgress']:
+      if item.play_ready and not item.failing:
+        overall_progress = rar_progress + '\n' + progress_speed
+      elif item.failing:
+        overall_progress = damage + '\n' + rar_progress + '\n' + progress_speed
+      elif not item.play_ready and not item.failing:
+        overall_progress = rar_progress + '\n' + rtp_progress_speed
+    else:
+      if item.play_ready and not item.failing:
+        overall_progress = progress_speed
+      elif item.failing:
+        overall_progress = damage + '\n' + progress_speed
+      elif not item.play_ready and not item.failing:
+        overall_progress = rtp_progress_speed
+      #overall_progress = rtp_progress_speed
+  log(7, funcName, 'overall progress:', overall_progress)
+  return overall_progress
+
+####################################################################################################
+@route(routeBase + 'Recover/{nzbID}')
+def Recover(nzbID):
+  item = app.queue.getItem(nzbID)
+  item.recover_par()
+  
 ####################################################################################################
 @route(routeBase + 'AddReportToQueue/{nzbID}')
 def AddReportToQueue(nzbID, article='nothing'):
@@ -714,7 +778,7 @@ def manageQueue():
   funcName = "[manageQueue]"
 
   # First check if there's anything in the queue
-  log(6, funcName, 'Items in download queue:', len(app.queue.downloadableItems))
+  log(7, funcName, 'Items in download queue:', len(app.queue.downloadableItems))
 #  if len(app.queue.downloadableItems) == 0:
 #    return MessageContainer('Nothing in queue', 'There are no items in the queue')
     #MainMenu()
@@ -726,11 +790,15 @@ def manageQueue():
   # Display the contents of the queue
   log(7, funcName, 'Creating dir')
   dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=1)
+  ############################################################
+  # Pausing is causing problems.  Commenting it out in
+  # hope of fixing it one day
+  #
   #if app.downloader.notPaused:
   #  dir.Append(DirectoryItem(Route(pauseDownload), title="Pause Downloading", subtitle="Temporarily suspend all downloads", summary=""))
   #else:
   #  dir.Append(DirectoryItem(Route(resumeDownload), title="Resume Downloading", subtitle="You temporarily suspended downloads.  Resume them now.", summary=""))
-  
+  #############################################################
   if len(app.queue.downloadableItems) == 0:
     dir.Append(DirectoryItem(Route(StupidUselessFunction, key=""), title="0 items in download queue", subtitle="Nothing to download", summary=""))
   log(7, funcName, 'Looking at each item in queue')
@@ -738,44 +806,44 @@ def manageQueue():
     log(7, funcName, 'Examining:', item.report.title)
     subtitle = ' '
     summary = ' '
-    progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
-    speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
-    progress_speed = progress + '\n' + speed
+#     progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
+#     speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
+#     progress_speed = progress + '\n' + speed
+#     rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
+#     rtp_progress_speed = rtp + '\n' + progress_speed
+#     rar_progress = ('Downloaded %s out of %s RARs' % (str(len(item.incoming_files)), str(len(item.nzb.rars))))
+#     if Prefs['ShowRARProgress']:
+#       if item.play_ready:
+#         overall_progress = rar_progress + '\n' + progress_speed
+#       else:
+#         overall_progress = rar_progress + '\n' + rtp_progress_speed
+#     else:
+#       overall_progress = rtp_progress_speed
+    overall_progress = progressText(item)
     #if item.complete:
     #  log(7, funcName, 'item.complete:', item.complete)
     #  subtitle = L('DL_COMPLETE')
     #  summary = progress_speed + "\n" + item.report.summary
 
-    if item.play_ready:
+    if item.play_ready and not item.failing:
       log(7, funcName, 'item.play_ready:', item.play_ready)
       subtitle = L('DL_PLAY_READY')      
-      summary = progress_speed
-
-    elif item.downloading:
+      summary = overall_progress
+    elif item.failing:
+      subtitle = L('DL_DAMAGED')
+      summary = overall_progress
+    elif item.downloading and not item.failing:
       log(7, funcName, 'item.downloading:', item.downloading)
       log(7, funcName, 'item.play_ready_time:', item.play_ready_time)
-      # All these strings can be found in the Strings folder of the bundle
       
+      # All these strings can be found in the Strings folder of the bundle
       tm = item.play_ready_time
       if tm == 0:
         subtitle = L('DL_PLAY_READY')
-        summary = progress_speed
+        summary = overall_progress
       else:
-#         subtitle = L('DL_DOWNLOADING')
-#         if tm < 3:
-#           ttp = L('DL_SUM_PR_FEW_SECS')
-#         elif tm > 60:
-#           mins = tm / 60
-#           secs = tm % 60
-#           if mins == 1:
-#             key = 'DL_SUM_PR_MIN_SECS'
-#           else:
-#             key = 'DL_SUM_PR_MINS_SECS'
-#           ttp = F(key, mins, secs)
-#         else:
-#           ttp = F('DL_SUM_PR_SECS', tm)
-        ttp = ReadyToPlayText(tm)
-        summary += ttp + "\n" + progress_speed
+        ttp = TimeText(tm)
+        summary = L('DL_RTP') + ttp + "\n" + overall_progress
 
     else:
       subtitle = L('DL_QUEUED')
@@ -788,7 +856,8 @@ def manageQueue():
 
   return dir
 
-def ReadyToPlayText(tm):
+#####################################################################################################
+def TimeText(tm):
   ttp = ''
   if tm < 3:
     ttp = L('DL_SUM_PR_FEW_SECS')
@@ -803,6 +872,7 @@ def ReadyToPlayText(tm):
   else:
     ttp = F('DL_SUM_PR_SECS', tm)
   return ttp
+
 ####################################################################################################
 # These functions are related specifically to the queue
 ####################################################################################################
@@ -814,8 +884,7 @@ def StartStreamAction(id):
   log(6, funcName, "Got id:", item.id)
 
   if not item: return MessageContainer("No Item", "Did not find item")
-  if item.play_ready:
-    #a = Redirect(item.stream)
+  if item.play_ready or item.complete:
     return Redirect(item.stream)
 
 @route(routeBase + 'pauseDownload')
@@ -1112,7 +1181,7 @@ def getTVRage_metadata(tvRageUrl):
           log(8, funcName, 'summary:', summary)
           log(8, funcName, 'ad:', ad)
           summary = summary.replace(ad.text_content(), '')
-        summary = summary.replace('.Source:', ".\n\nSource:")
+        summary = summary.replace('Source:', "\n\nSource:")
       except:
         try:
           summary = tvRageXML.xpath("//tr[@id='ieconn3']/td/table//table//td")[0].text_content()

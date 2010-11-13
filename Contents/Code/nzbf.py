@@ -7,10 +7,12 @@ ns_xpath = lambda el, xp: el.xpath(xp, namespaces={'nzb':'http://www.newzbin.com
 extensions = ['rar', 'par2', re.compile(r'r\d\d')]
 
 class NZArticle(object):
-  def __init__(self, article_id, size):
+  def __init__(self, article_id, size, segment_number):
     self.size = size
     self.article_id = article_id
+    self.segment_number = segment_number
     self.complete = False
+    self.failed = False
 
 class NZFile(object):
   def __init__(self, el):
@@ -57,7 +59,7 @@ class NZFile(object):
     """ Store the file segments in a list """
 
     for segment_el in ns_xpath(el, 'nzb:segments/nzb:segment'):
-      article = NZArticle(segment_el.text, int(segment_el.get('bytes')))
+      article = NZArticle(segment_el.text, int(segment_el.get('bytes')), int(segment_el.get('number')))
       self.articles.append(article)
       self.size = self.size + article.size
   
@@ -152,7 +154,8 @@ class NZB(object):
     # Sort the rars and add them to the list
     self.rars.extend(Util.ListSortedByAttr(rars, 'name'))
     self.rars.extend(Util.ListSortedByAttr(rnns, 'name'))
-    
+    #self.rars.extend(Util.ListSortedByAttr(self.pars, 'name'))
+  
   def downloaded_bytes(self):
     funcName = '[nzbf.NZB.downloaded_bytes]'
     downloaded = 0

@@ -1,6 +1,8 @@
 from report import Report
 from unpacker import Unpacker
 from nzbf import NZB
+from Recoverer import Recoverer
+import time
 #from common import AppService
 
 media_extensions = ['avi', 'mkv', 'mov', 'wmv', 'mp4', 'm4v']
@@ -16,6 +18,7 @@ class MediaItem(object):
     self.report = report
     self.nzb = NZB(nzb_xml)
     self.valid = True
+    self.failed_articles = []
 
     log(4, funcName, 'Setting media path to', Core.storage.data_path, '/Media')
     self.media_path = Core.storage.join_path(Core.storage.data_path, 'Media')
@@ -28,9 +31,13 @@ class MediaItem(object):
     log(5, funcName, "making", self.completed_path)
     Core.storage.make_dirs(self.completed_path)
     
-    self.unpacker = None
     self.files = None
     self.stream_initiator = None
+    
+    self.recoverable = False
+    self.recovery_complete = False
+    self.repair_percent = 0
+    self.recovery_files_added = False
     
     self.downloading = False
     self.complete = False
@@ -40,25 +47,49 @@ class MediaItem(object):
     
     self.incoming_files = []
     
-    #report_path = self.path('ReportData')
-    nzb_path = self.path('SourceData')
+    nzb_path = self.path(cleanFSName(self.report.title) + '.nzb')
     if not Core.storage.file_exists(nzb_path):
       Core.storage.save(nzb_path, XML.StringFromElement(nzb_xml))
-    #if not Core.storage.file_exists(report_path):
-    #  Core.storage.save(report_path, XML.StringFromElement(report_el))
   
+  @property
+  def recovered(self):
+    try:
+      if self.recoverable and self.recovery_complete:
+        return True
+      else:
+        return False
+    except:
+      return True
+      
+  @property
+  def failing(self):
+    try:
+      if len(self.failed_articles) > 0:
+        return True
+      else:
+        return False
+    except:
+      return False
+
+  def add_failed_article(self, article_id):
+    self.failed_articles.append(article_id)
+    if not self.recovery_files_added:
+      self.recovery_files_added = True
+      self.add_pars_to_download()
+      self.save()
+
   def delete(self):
     funcName = '[Queue.MediaItem.delete]'
     self.valid = False
     try:
-      if app.unpacker:
-        log(7, funcName, 'checking if existing unpacker is for this item')
-        if app.unpacker.item.id == self.id:
-          log(7, funcName, 'stopping unpacker for this item')
-          app.unpacker.stopped = True
-          app.unpacker = None
+      up = app.unpacker_manager.get_unpacker(self)
+      if up: app.unpacker_manager.end_unpacker(self)
+      if app.recoverer:
+        if app.recoverer.item.id == self.id:
+          app.recoverer.stopped = True
+          app.recoverer = None
     except:
-      log(6, funcName, 'Unable to stop unpacker')
+      log(6, funcName, 'Unable to stop unpacker or recoverer')
 
     myPath = Core.storage.join_path(self.media_path, str(self.report.mediaType), cleanFSName(self.report.title))
     Core.storage.remove_tree(myPath)
@@ -83,23 +114,18 @@ class MediaItem(object):
   def play_ready(self):
     funcName = '[Queue.MediaItem.play_ready]'
     ready = False
-    if app.unpacker != None:
-      log(7, funcName, 'app.unpacker != None')
-      if app.unpacker.item.id == self.id:
-        log(7, funcName, 'app.unpacker.item.id (' + app.unpacker.item.id + ') == self.id (' + self.id + ')')
-        if app.unpacker.play_ready:
-          log(7, funcName, 'app.unpacker.play_ready')
-          if self.fullPathToMediaFile:
-            log(7, funcName, 'self.fullPathToMediaFile:',self.fullPathToMediaFile)
-            ready = True
-          else:
-            log(7, funcName, 'No media file found')
+    if app.unpacker_manager.get_unpacker(self):
+      if app.unpacker_manager.get_unpacker(self).play_ready:
+        log(7, funcName, 'app.unpacker.play_ready')
+        if self.fullPathToMediaFile:
+          log(7, funcName, 'self.fullPathToMediaFile:',self.fullPathToMediaFile)
+          ready = True
         else:
-          log(7, funcName, 'NOT app.unpacker.play_ready')
+          log(7, funcName, 'No media file found')
       else:
-        log(7, funcName, 'app.unpacker.item.id (' + app.unpacker.item.id + ') != self.id (' + self.id + ')')
+        log(7, funcName, 'NOT app.unpacker_manager.get_unpacker(self).play_ready')
     else:
-      log(7, funcName, 'app.unpacker == None')
+      log(7, funcName, 'app.unpacker_manager.get_unpacker(self) == False')
     if self.complete and self.fullPathToMediaFile:
       ready = True
     log(7, funcName, 'Returning:', ready)
@@ -158,16 +184,23 @@ class MediaItem(object):
     done = rar.downloaded_bytes
     remaining = total - done
     delta = Datetime.Now() - self.download_start_time
-#     try:
-#       bps = float(done) / float(delta.seconds)
-#     except:
-#       bps = 1
-#     
     try:
       secs_left = int(float(remaining) / self.speed)
     except:
       secs_left = 999999
     log(7, funcName, 'seconds left:', secs_left)
+    return secs_left
+  
+  @property
+  def download_time_remaining(self):
+    if not self.download_start_time:
+      return
+    remaining = self.total_bytes - self.downloaded_bytes
+    delta = Datetime.Now() - self.download_start_time
+    try:
+      secs_left = int(float(remaining) / self.speed)
+    except:
+      secs_left = 999999
     return secs_left
   
   @property
@@ -217,12 +250,6 @@ class MediaItem(object):
     
     if not app.stream_initiator and self.play_ready and self.files:
       log(7, funcName, "Files:", self.files)
-#       for name in self.files: #Core.storage.list_dir(self.completed_path):
-#         index = name.rfind('.')
-#         if index > -1:
-#           ext = name[index+1:]
-#           if ext in media_extensions:
-#             log(6, funcName, "Found media file:", name)
       mediaFile = self.fullPathToMediaFile
       if self.complete:
         filesize = None
@@ -251,7 +278,6 @@ class MediaItem(object):
       log(2, funcName, "Error when looking for file:", filename)
     return fileExists
 
-  #def add_incoming_file(self, filename, data):
   def add_incoming_file(self, filename):
     funcName = "[Queue.MediaItem.add_incoming_file]"
     if self.valid:
@@ -259,7 +285,12 @@ class MediaItem(object):
       self.incoming_files.append(filename)
       #Core.storage.save(Core.storage.join_path(self.incoming_path, filename), data)
       #log(6, funcName,"Saved incoming data file", filename, "for item with id", self.id)
-      self.unpack(filename)
+      if not self.failing:
+        self.unpack(filename)
+      elif self.failing:
+        if len(self.incoming_files) == len(self.nzb.rars):
+          log(6, funcName, 'Downloaded final par file:', filename)
+          self.recover_par()
       self.save()
     else:
       log(7, funcName, 'No need to save, this file is being deleted')
@@ -267,54 +298,78 @@ class MediaItem(object):
   def unpack(self, filename):
     funcName = "[Queue.MediaItem.unpack]"
     global app
-    unpackerExists = False
-    try:
-      if not app.unpacker:
-        pass
-      elif app.unpacker.item.id != self.id:
-        pass
-      else:
-        unpackerExists = True
-    except:
-      pass
-    
-    if not unpackerExists:
+    up = app.unpacker_manager.get_unpacker(self)
+    if not up:
       log(6, funcName, 'Unpacker does not exist, creating one')
-      app.unpacker = Unpacker(self)
+      up = app.unpacker_manager.new_unpacker(self)
       log(7, funcName, 'Getting contents of unpacker')
-      self.files = app.unpacker.get_contents()
+      self.files = up.get_contents()
       log(7, funcName, 'Contents of unpacker:', self.files)
       if filename != self.nzb.rars[0].name:
         log(7, funcName, 'filename is not the first rar in the list')
-        app.unpacker.add_part(self.nzb.rars[0].name)
-        app.unpacker.add_part(filename)
+        up.add_part(self.nzb.rars[0].name)
+        up.add_part(filename)
       log(7, funcName, 'starting unpacker')
-      app.unpacker.start()
+      up.start()
       log(7, funcName, 'unpacker started')
     else:
       log(6, funcName, 'Adding file to existing unpacker')
-      app.unpacker.add_part(filename)
-      
-    #self.save()
-        
+      up.add_part(filename)
+  
   def finished_unpacking(self):
     funcName = "[Queue.MediaItem.finished_unpacking]"
-    log(6, funcName, 'Setting item complete to true for id:', self.id)
-    self.complete = True
-    app.unpacker = None
-    log(5, funcName, "Finished unpacking item with id", self.id, "removing incoming data files")
-    
-    Core.storage.remove_tree(Core.storage.join_path(self.incoming_path))
-    
-    #for filename in Core.storage.list_dir(self.incoming_path):
-    #  Core.storage.remove(Core.storage.join_path(self.incoming_path, filename))
-    
-#     if app.stream_initiator and app.stream_initiator.more_data_coming:
-#       log(6, funcName, 'Updating stream_initiator.more_data_coming to False')
-#       app.stream_initiator.more_data_coming = False
-#       #self.stream_initiator.size = None
+    if self.failing and not self.recovered:
+      # Get the recovery process kicked off
+      self.recover_par()
+    else:
+      log(6, funcName, 'Setting item complete to true for id:', self.id)
+      self.complete = True
+      app.unpacker_manager.end_unpacker(self)
+      log(5, funcName, "Finished unpacking item with id", self.id, "removing incoming data files")    
+      Core.storage.remove_tree(Core.storage.join_path(self.incoming_path))
     self.save()
-
+  
+  def add_pars_to_download(self):
+    funcName = '[Queue.MediaItem.add_pars_to_download]'
+    self.nzb.rars.extend(Util.ListSortedByAttr(self.nzb.pars, 'name'))
+    app.downloader.add_files_to_download(self.nzb.pars, self)
+    self.save()
+    log(3, funcName, 'Added pars to download:', Util.ListSortedByAttr(self.nzb.pars, 'name'))
+    
+  def recover_par(self):
+    funcName = '[Queue.MediaItem.recover_par]'
+    log(3, funcName, 'Starting recover')
+    app.recoverer = Recoverer(app, self)
+    app.recoverer.start()
+    Thread.Create(self.recovery_monitor)
+    
+  def recovery_monitor(self):
+    funcName = '[Queue.MediaItem.recovery_monitor]'
+    r = app.recoverer
+    while True:
+      if r.recoverable:
+        self.recoverable = True
+        self.repair_percent = r.repair_percent
+        self.save()
+      else:
+        if r.recovery_complete:
+          self.recoverable = False
+          self.recovery_complete = True
+          self.save()
+          break
+          
+      # When repairs are completed, unpack and call it a day
+      if self.recoverable and r.recovery_complete:
+        log(3, funcName, 'Recovery complete, unpacking, saving, and exiting')
+        self.unpack(self.nzb.rars[0].name)
+        self.recovery_complete = True
+        self.failed_articles = []
+        self.save()
+        break
+      else:
+        log(4, funcName, 'Waiting for recovery to complete, current status:', r.repair_percent)
+        time.sleep(5)
+        
   def save(self):
     funcName = "[Queue.MediaItem.save]"
     log(6, funcName, 'Saving item in the queue')
@@ -338,7 +393,7 @@ class Queue(AppService):
   def setupItemQueue(self, reset=False):
     funcName = '[Queue.Queue.setupItemQueue]'
     if persistentQueuing:
-      self.items = NWQueue('mediaItems')
+      self.items = NWQueue('mediaItems' + mediaItemsQueueVersion)
     else:
       items = []
     return self.items

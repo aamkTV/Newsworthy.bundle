@@ -1,3 +1,28 @@
+class UnpackerManager(AppService):
+  def init(self):
+    self.unpackers = []
+  
+  def get_unpacker(self, item):
+    up = False
+    for unpacker in self.unpackers:
+      if unpacker.item == item:
+        up = unpacker
+        break
+    return up
+    
+  def new_unpacker(self, item):
+    up = Unpacker(item)
+    self.unpackers.append(up)
+    return up
+    
+  def end_unpacker(self, item):
+    up = self.get_unpacker(item)
+    up.stopped = True
+    try:
+      self.unpackers.remove(up)
+    except:
+      pass
+    
 class Unpacker(object):
   def __init__(self, item):
     funcName = "[Unpacker.__init__]"

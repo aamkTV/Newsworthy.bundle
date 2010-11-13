@@ -1,4 +1,5 @@
 from decoder import Decoder
+import sys
 import time
 
 SLEEP_TIME = 1 #seconds between loops when there's nothing to do
@@ -13,7 +14,7 @@ class Downloader(AppService):
   def init(self):
     self.client_pool = Core.runtime.create_taskpool(self.app.num_client_threads)
     self.file_pool = Core.runtime.create_taskpool(1)
-    
+    self.file_tasks = []
     self.client_lock = Thread.Lock()
     self.article_lock = Thread.Lock()
 ######################################################
@@ -87,8 +88,8 @@ class Downloader(AppService):
     log(6, funcName, 'self.notPaused state:', self.notPaused)
     resuming = resume
     while self.notPaused:
-      log(7, funcName, 'length of downloadingItems:', len(self.app.queue.downloadingItems))
-      log(7, funcName, 'length of downloadQueue:', len(self.app.queue.downloadQueue))
+      log(8, funcName, 'length of downloadingItems:', len(self.app.queue.downloadingItems))
+      log(8, funcName, 'length of downloadQueue:', len(self.app.queue.downloadQueue))
       while self.notPaused and len(self.app.queue.downloadableItems)>0:
         if len(self.app.queue.downloadingItems) > 0:
           item = self.app.queue.downloadingItems[0]
@@ -110,28 +111,29 @@ class Downloader(AppService):
         while self.notPaused and item:
           item.downloading = True
           item.save()
-          file_tasks = []
+          self.file_tasks = []
           log(7, funcName,'All the files to download in this task:',item.nzb.rars)
-          skippedFile = False
-          for file_obj in item.nzb.rars:
-            #print file_obj
-            filename = str(file_obj.name)
-            log(7, funcName, "If file isn't already downloaded, we'll download it now:", filename)
-            if not item.fileCompleted(filename):
-              log(6, funcName, 'Adding a file to file_tasks:', file_obj.name)
-              file_tasks.append(self.download_file(file_obj, item))
-            else:
-              log(6, funcName, 'Skipping file, already downloaded:', file_obj.name)
-              skippedFile = True
+          #skippedFile = False
+          self.add_files_to_download(item.nzb.rars, item)
+#           for file_obj in item.nzb.rars:
+#             #print file_obj
+#             filename = str(file_obj.name)
+#             log(7, funcName, "If file isn't already downloaded, we'll download it now:", filename)
+#             if not item.fileCompleted(filename):
+#               log(6, funcName, 'Adding a file to file_tasks:', file_obj.name)
+#               self.file_tasks.append(self.download_file(file_obj, item))
+#             else:
+#               log(6, funcName, 'Skipping file, already downloaded:', file_obj.name)
+#               skippedFile = True
           
-          if skippedFile:
-            log(6, funcName, 'File was skipped, start the unpacker')
-            item.unpack(item.nzb.rars[0])
-
-          while len(file_tasks) > 0:
-            log(6, funcName, 'Number of files in the process:', len(file_tasks))
+#           if skippedFile:
+#             log(6, funcName, 'File was skipped, start the unpacker')
+#             item.unpack(item.nzb.rars[0])
+          log(4, funcName, 'Now I''ll wait for files to download')
+          while len(self.file_tasks) > 0:
+            log(6, funcName, 'Number of files in the process:', len(self.file_tasks))
             log(7, funcName, 'Checking status of file')
-            task = file_tasks.pop(0)
+            task = self.file_tasks.pop(0)
             #filename, data = task.result
             filename = task.result
             log(6, funcName, "Finished downloading", filename)
@@ -155,9 +157,26 @@ class Downloader(AppService):
         self.shutdown_clients()
       
       else: #not self.notPaused or item_queue<1
-        log(7, funcName, 'Nothing to download, going to sleep for', SLEEP_TIME, '.  Active clients:', self.active_clients)
+        log(8, funcName, 'Nothing to download, going to sleep for', SLEEP_TIME, '.  Active clients:', self.active_clients)
         time.sleep(int(SLEEP_TIME))
   
+  def add_files_to_download(self, file_objs, item):
+    funcName = '[downloader.Downloader.add_files_to_download]'
+    skippedFile = False
+    for file_obj in file_objs:
+      filename = str(file_obj.name)
+      log(7, funcName, "If file isn't already downloaded, we'll download it now:", filename)
+      if not item.fileCompleted(filename):
+        log(6, funcName, 'Adding a file to file_tasks:', file_obj.name)
+        self.file_tasks.append(self.download_file(file_obj, item))
+      else:
+        log(6, funcName, 'Skipping file, already downloaded:', file_obj.name)
+        skippedFile = True
+      
+    if skippedFile:
+      log(6, funcName, 'File was skipped, start the unpacker')
+      item.unpack(item.nzb.rars[0])
+      
   def download_file(self, file_obj, item):
     return self.file_pool.add_task(
       self.download_file_task,
@@ -197,11 +216,11 @@ class Downloader(AppService):
     funcName = "[downloader.Downloader.client_task " + str(self.active_clients) + "]"
     Thread.ReleaseLock(self.client_lock)
     client = nntpClient(self.app)
-    #client = nntpClient()
     client.connect()
     
     while self.notPaused:
       log(8, funcName, 'Top of outer loop')
+      #failed = False
       try:
         info = self.article_queue.get(True, 120)
         #log(7, funcName, 'info:', info)
@@ -213,12 +232,22 @@ class Downloader(AppService):
         break
       
       log(8, funcName, 'Getting file:', info.file_obj.name, ', article:', info.article_obj.article_id)
-      article = client.get_article(info.article_obj)
-      
+      try:
+        article = client.get_article(info.article_obj)
+      except nntpException:
+        type, exception, traceback = sys.exc_info()
+        if exception.id == 430:
+          log(2, funcName, 'article', info.article_obj.article_id, 'failed to download')
+          info.article_obj.failed = True
+          item = self.app.queue.downloadingItems[0]
+          item.add_failed_article(info.article_obj.article_id)
+          info.decoder.skip_part(info.article_obj.segment_number)
+          continue
       if self.notPaused:
         log(8, funcName, 'top on inner loop')
-        info.decoder.add_part(article)
-        info.article_obj.complete = True
+        if not info.article_obj.failed:
+          info.decoder.add_part(article)
+          info.article_obj.complete = True
 ###############################################
 # Part of persistency effort
 #       if persistentQueuing:
@@ -247,7 +276,6 @@ class Downloader(AppService):
     Thread.ReleaseLock(self.article_lock)
     decoder.wait()
     log(7, funcName, 'downloaded filename:', decoder.filename)
-    #Core.storage.save(Core.storage.join_path(item.incoming_path, decoder.filename), decoder.decoded_data)
     Core.storage.save(Core.storage.join_path(item.incoming_path, decoder.filename), decoder.data)
     log(7, funcName, 'saved file:', decoder.filename)
     #return (decoder.filename, decoder.decoded_data)

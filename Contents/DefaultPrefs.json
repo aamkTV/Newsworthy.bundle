@@ -53,6 +53,11 @@
 		"default":	'false',
 		"label":	'General: Do you want to be able to search by NewzbinID?'
 	},
+	{	"id":		'ShowRARProgress',
+		"type":		'bool',
+		"default":	'false',
+		"label":	'General: Show Progression of RAR downloads?'
+	},
 	{
 		"id":		'NZBService',
 		"type":		'enum',

@@ -44,6 +44,7 @@ class Decoder(object):
     self.data = ''
     self.parts_received = []
     self.start_data_queue()
+    self.skipped_parts = 0
     
   @property
   def complete(self):
@@ -58,8 +59,8 @@ class Decoder(object):
     
   @property
   def decoded_data(self):
-    if not self.complete:
-      raise Exception('Parts missing')
+  #  if not self.complete:
+  #    raise Exception('Parts missing')
       
     data = ''
     Log('Compiling data')
@@ -72,6 +73,11 @@ class Decoder(object):
   def start_data_queue(self):
     Log('Starting data queuing thread')
     Thread.Create(self.add_part_to_data)
+  
+  def skip_part(self, part_number):
+    self.skipped_parts = self.skipped_parts + 1
+    self.parts[part_number] = ''
+    self.parts_received.append(part_number)
     
   def add_part_to_data(self):
     fname = '[Decoder.add_part_to_data] '
@@ -179,8 +185,14 @@ class Decoder(object):
         raise Exception('Filename mismatch')
     
     #Log('[Decoder.add_part] Adding part ' + str(int(yend['part'])) + ' to self.parts')
-    self.parts[int(yend['part'])] = decoded_data
-    self.parts_received.append(int(yend['part']))
+    try:
+      self.parts[int(yend['part'])] = decoded_data
+      self.parts_received.append(int(yend['part']))
+    except:
+      Log('error in:' + filename)
+      self.total=1
+      self.parts[1] = decoded_data
+      self.parts_received.append(1)
     
     #if self.complete:
     #  self.finished.set()
