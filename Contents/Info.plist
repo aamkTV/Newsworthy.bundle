@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>English</string>
     <key>CFBundleExecutable</key>
-    <string>Hello</string>
+    <string>NA</string>
     <key>CFBundleIdentifier</key>
     <string>com.plexapp.plugins.newzworthy</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -17,9 +17,9 @@
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>PlexPluginMode</key>
-    <string>AlwaysOn</string>
+    <string>Daemon</string>
     <key>PlexPluginDebug</key>
-    <string>0</string>
+    <string>1</string>
 	<key>PlexPluginDevMode</key>
 	<string>0</string>
 	<key>PlexFrameworkVersion</key>
@@ -27,11 +27,15 @@
 	<key>PlexPluginLogLevel</key>
 	<string>Info</string>
 	<key>PlexClientPlatforms</key>
-    <string>MacOSX,iOS</string>
+    <string>MacOSX,iOS,Android</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>PlexPluginCodePolicy</key>
 	<string>Elevated</string>
+	<key>PlexResourceBundle</key>
+	<string>1</string>
+	<key>PlexPluginConsoleLogging</key>
+	<string>1</string>
   </dict>
 </plist>
 

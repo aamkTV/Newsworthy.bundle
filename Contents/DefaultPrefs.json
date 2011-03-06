@@ -1,74 +1,81 @@
 [
 	{
-		"id":		'ShowSDTV',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'TV: Show SD TV Results?',
+		"id":		"ShowSDTV",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"TV: Show SD TV Results?"
 	},
 	{
-		"id":		'ShowHDTV',
-		"type":		'bool',
-		"default":	'true',
-		"label":	'TV: Show HD (720/1080) TV Results?',
+		"id":		"ShowHDTV",
+		"type":		"bool",
+		"default":	"true",
+		"label":	"TV: Show HD (720/1080) TV Results?"
 	},
 	{
-		"id":		'consolidateTVDuplicates',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'TV: Consolidate Duplicate Search Results?'
+		"id":		"consolidateTVDuplicates",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"TV: Consolidate Duplicate Search Results?"
 	},
 	{
-		"id":		'ShowNonHDMovies',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'Movies: Show Non-HD Movie Results?'
+		"id":		"ShowNonHDMovies",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"Movies: Show Non-HD Movie Results?"
 	},
 	{
-		"id":		'Show720pMovies',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'Movies: Show 720p Movie Results?'
+		"id":		"Show720pMovies",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"Movies: Show 720p Movie Results?"
 	},
 	{
-		"id":		'Show1080iMovies',
-		"type":		'bool',
-		"default":	'true',
-		"label":	'Movies: Show 1080i Movie Results?'
+		"id":		"Show1080iMovies",
+		"type":		"bool",
+		"default":	"true",
+		"label":	"Movies: Show 1080i Movie Results?"
 	},
 	{
-		"id":		'Show1080pMovies',
-		"type":		'bool',
-		"default":	'true',
-		"label":	'Movies: Show 1080p Movie Results?'
+		"id":		"Show1080pMovies",
+		"type":		"bool",
+		"default":	"true",
+		"label":	"Movies: Show 1080p Movie Results?"
 	},
 	{
-		"id":		'consolidateMovieDuplicates',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'Movies: Consolidate Duplicate Search Results?'
+		"id":		"consolidateMovieDuplicates",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"Movies: Consolidate Duplicate Search Results?"
 	},
 	{
-		"id":		'ShowSearchByNewzbinID',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'General: Do you want to be able to search by NewzbinID?'
+		"id":		"ShowSearchByNewzbinID",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"General: Do you want to be able to search by NewzbinID?"
 	},
-	{	"id":		'ShowRARProgress',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'General: Show Progression of RAR downloads?'
-	},
-	{
-		"id":		'NZBService',
-		"type":		'enum',
-		"values":	['NZBMatrix','Newzbin'],
-		"default":	'Newzbin',
-		"label":	'Which NZB service do you use?'
+	{	"id":		"ShowRARProgress",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"General: Show Progression of RAR downloads?"
 	},
 	{
-		"id":		'ShowDiags',
-		"type":		'bool',
-		"default":	'false',
-		"label":	'Show troubleshooting options?  (Advanced Users Only)'
+		"id":		"NZBService",
+		"type":		"enum",
+		"values":	["NZBMatrix","Newzbin"],
+		"default":	"Newzbin",
+		"label":	"Which NZB service do you use?"
+	},
+	{
+		"id":		"ShowDiags",
+		"type":		"bool",
+		"default":	"false",
+		"label":	"Show troubleshooting options?  (Advanced Users Only)"
+	},
+	{
+		"id":		"NWLogLevel",
+		"type":		"enum",
+		"values":	["1", "2", "3", "4", "5", "6", "7", "8", "9"],
+		"default":	"5",
+		"label":	"Debug Level (Advanced Users Only)"
 	}
 ]

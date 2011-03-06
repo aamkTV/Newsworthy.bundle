@@ -2,31 +2,36 @@ class UnpackerManager(AppService):
   def init(self):
     self.unpackers = []
   
-  def get_unpacker(self, item):
+  def get_unpacker(self, id):
+    funcName = '[UnpackerManager.get_unpacker]'
     up = False
     for unpacker in self.unpackers:
-      if unpacker.item == item:
+      if unpacker.item.id == id:
         up = unpacker
         break
+      else:
+        log(7, funcName, 'Looking for:', id, 'compared against:', unpacker.item.id)
     return up
     
-  def new_unpacker(self, item):
-    up = Unpacker(item)
+  def new_unpacker(self, id):
+    item = self.app.queue.getItem(id)
+    up = Unpacker(item, self.app)
     self.unpackers.append(up)
     return up
     
-  def end_unpacker(self, item):
-    up = self.get_unpacker(item)
-    up.stopped = True
+  def end_unpacker(self, id):
+    up = self.get_unpacker(id)
+    if up: up.stopped = True
     try:
       self.unpackers.remove(up)
     except:
       pass
     
 class Unpacker(object):
-  def __init__(self, item):
+  def __init__(self, item, app):
     funcName = "[Unpacker.__init__]"
     log(6, funcName, 'Unpacker started')
+    self.app = app
     self.item = item
     self.parts = []
     self.complete = False
@@ -89,11 +94,6 @@ class Unpacker(object):
       'e', '-kb', '-vp', '-o+',
       first_path, out_path
     )
-#     self.proc = Helper.Process(
-#       'unrar',
-#       'e', '-kb', '-vp', '-o+',
-#       ("\"" + first_path + "\""), ("\"" + out_path + "\"")
-#     )
     
     Thread.Create(self.monitor)
     
@@ -159,6 +159,7 @@ class Unpacker(object):
     self.process(data)
     
     self.complete = True
+    self.item = self.app.queue.getItem(self.item.id)
     self.item.finished_unpacking()
     
     Log.Debug("Monitor thread ended")

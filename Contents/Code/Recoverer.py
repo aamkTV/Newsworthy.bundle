@@ -15,10 +15,12 @@ class Recoverer(object):
   
   def start(self):
     funcName = '[Recoverer.start]'
-    log(3, funcName, 'recovering', Core.storage.join_path(self.item.incoming_path, self.item.nzb.pars[0].name))
-    self.proc = Helper.Process(
-      'par2SL', 'r', Core.storage.join_path(self.item.incoming_path, self.item.nzb.pars[0].name)
-      )
+    for par in self.item.nzb.pars:
+      if par.ext == "par2":
+        #log(3, funcName, 'recovering', Core.storage.join_path(self.item.incoming_path, self.item.nzb.pars[0].name))
+        log(3, funcName, 'recovering', Core.storage.join_path(self.item.incoming_path, par.name))
+        self.proc = Helper.Process('par2SL', 'r', Core.storage.join_path(self.item.incoming_path, par.name))
+        break
     Thread.Create(self.recover_process)
     
   def recover_process(self):
@@ -46,7 +48,7 @@ class Recoverer(object):
       data += chunk
       lines = data.split('\n')
       for line in lines:
-        log(8, funcName, 'processing this line:', line)
+        if len(line): log(8, funcName, 'processing this line:', line)
         if not self.recoverable:
           if line[:22] == 'Repair is not possible':
             log(3, funcName, 'Repair is not possible, stopping')
@@ -58,8 +60,13 @@ class Recoverer(object):
             log(3, funcName, 'Repair is possible, continuing')
             self.recoverable = True
             #data = ''
+          elif line[:46] == 'All files are correct, repair is not required.':
+            log(3, funcName, 'Repair is not needed, ending successfully')
+            self.recoverable = True
+            self.recovery_complete = True
+            self.proc.kill()
         
-        if self.recoverable:
+        if self.recoverable and not self.recovery_complete:
           if line[:11] == 'Repairing: ':
             self.repair_percent = int(line[line.rfind(':')+2:line.rfind('.')])
             #self.repair_percent = int(line[-6:-3])

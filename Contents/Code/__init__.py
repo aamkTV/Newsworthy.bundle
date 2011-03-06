@@ -1,10 +1,11 @@
 from array import *
 from common import *
-from nntpclient import nntpClient
-from queue import Queue
+from queue import *
 from configuration import *
 from time import sleep
 import sys
+from nntpclient import *
+import configuration
 
 ############################################################################################################
 # Recently Done
@@ -29,8 +30,6 @@ import sys
 #	 Much of this code kind of exists, but does not consistenly work (see NWQueue implementation)'
 #2. Allow the user to reprioritize download order
 
-PREFIX      = "/video/newzworthy"
-
 nzbServiceInfo = NZBService()
 app = NewzworthyApp()
 nzb = None
@@ -50,7 +49,6 @@ def Start():
   MediaContainer.content = 'Items'
   Resource.AddMimeType('video/x-matroska', '.mkv')
   Resource.AddMimeType('video/x-m4v', '.mp4')
-  Resource.AddMimeType('video/x-m4v', '.mp4')
   Resource.AddMimeType('video/x-wmv', '.wmv')
   Resource.AddMimeType('video/x-msvideo', '.avi')
 
@@ -58,32 +56,34 @@ def Start():
   HTTP.SetCacheTime=CACHE_INTERVAL
   HTTP.ClearCache()
   
-  #Hack
-  if nzbItemsDict in Dict:
-    log(5, funcName, nzbItemsDict, 'found!')
-    pass
-  else:
-    log(5, funcName, nzbItemsDict, 'not found, creating...')
-    Dict[nzbItemsDict] = {}
-
+  #Hack##########################
+  if not nzbItemsDict in Dict: Dict[nzbItemsDict] = {}
+  if not nntpConfigDict in Dict: Dict[nntpConfigDict] = {}
+  if not tvRageItemsDict in Dict: Dict[tvRageItemsDict] = {}
+  ##############################
+  
   global loggedInNZBService
   global nzb
-  NZBServiceSet = setNZBService()
-  if NZBServiceSet:
+  global app
+  primeConnections=True
+  if primeConnections:
+    NZBServiceSet = setNZBService()
     loggedInNZBService = nzb.performLogin(nzbServiceInfo)
 
   global nntp
   global loggedInNNTP
   
-  nntp=nntpClient(app)
+  #log(7, funcName, 'app:', app)
 
-  log(8, funcName, 'NNTP Username, password, host, port, ssl:', nntp.nntpUsername, nntp.nntpPassword, nntp.nntpHost, nntp.nntpPort, nntp.nntpSSL)
-  try:
-    loggedInNNTP = nntp.connect()
-  except:
-    loggedInNNTP = False
-  finally:
-    nntp.disconnect()
+  #log(8, funcName, 'NNTP Username, password, host, port, ssl:', nntp.nntpUsername, nntp.nntpPassword, nntp.nntpHost, nntp.nntpPort, nntp.nntpSSL)
+  if primeConnections:
+    nntp = nntpClient(app)
+    try:
+      loggedInNNTP = nntp.connect()
+    except:
+      loggedInNNTP = False
+    finally:
+      if nntp: nntp.disconnect()
     
   log(5, funcName, 'Newzworthy started')
   return True
@@ -103,26 +103,28 @@ def setNZBService(retType='bool'): #valid return types: bool and object
   serviceName=Prefs['NZBService']
   log(4,funcName,'importing NZBService:', serviceName)
 
+  nzbServiceInfo.newzbinUsername = getConfigValue(theDict=nzbConfigDict, key='newzbinUsername')
+  log(6, funcName, 'newzbin Username:', nzbServiceInfo.newzbinUsername)
+  nzbServiceInfo.newzbinPassword = getConfigValue(theDict=nzbConfigDict, key='newzbinPassword')
+  log(8, funcName, 'newzbin Password:', nzbServiceInfo.newzbinPassword)
+  log(6, funcName, 'Getting nzbMatrix Username')
+  nzbServiceInfo.nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
+  log(6, funcName, 'nzbMatrix Username:', nzbServiceInfo.nzbmatrixUsername)
+  nzbServiceInfo.nzbmatrixPassword = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword')
+  log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
+  ##nzbServiceInfo.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
+
+
   if serviceName=='Newzbin':
     log(4, funcName, 'importing newzbin')
     #import newzbin as nzb
     nzb = nzbNewzbin
     serviceImported=True
-    nzbServiceInfo.newzbinUsername = getConfigValue(theDict=nzbConfigDict, key='newzbinUsername')
-    log(6, funcName, 'newzbin Username:', nzbServiceInfo.newzbinUsername)
-    nzbServiceInfo.newzbinPassword = getConfigValue(theDict=nzbConfigDict, key='newzbinPassword')
-    log(8, funcName, 'newzbin Password:', nzbServiceInfo.newzbinPassword)
   elif serviceName=='NZBMatrix':
     log(4, funcName, 'importing nzbmatrix')
     #import nzbmatrix as nzb
     nzb = nzbNzbmatrix
     serviceImported=True
-    log(6, funcName, 'Getting nzbMatrix Username')
-    nzbServiceInfo.nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
-    log(6, funcName, 'nzbMatrix Username:', nzbServiceInfo.nzbmatrixUsername)
-    nzbServiceInfo.nzbmatrixPassword = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword')
-    log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
-    ##nzbServiceInfo.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
   log(4, funcName, serviceName, 'imported.')
   if retType == 'bool': return serviceImported
   if retType == 'object': return nzb
@@ -130,14 +132,27 @@ def setNZBService(retType='bool'): #valid return types: bool and object
 ####################################################################################################
 def ValidatePrefs():
   funcName = "[ValidatePrefs] "
-  log(2, funcName + "Restarting Newzworthy Plugin")
-  global app
-  try:
-    app.nntpManager.disconnect_all()
-  except:
-    pass
-  Core.runtime.restart()
+  #log(2, funcName + "Restarting Newzworthy Plugin")
+  #global loglevel
+  #loglevel = int(Prefs['NWLogLevel'])
+  #global app
+  global loggedInNZBService
+  loggedInNZBService = False
+  #This proves the prefs aren't set when this runs
+  #log(1, funcName, 'NZBService:', Prefs['NZBService'])
+  #try:
+  #  app.nntpManager.disconnect_all()
+  #except:
+  #  pass
+  #time.sleep(10)
+  #RestartNW()
 
+####################################################################################################
+@route(routeBase + 'SaveDict')
+def SaveDict():
+  funcName = '[SaveDict]'
+  Dict.Save()
+  log(3, funcName, 'Dict Saved')
 ####################################################################################################
 @route(routeBase + 'restart')
 def RestartNW():
@@ -146,7 +161,11 @@ def RestartNW():
     app.nntpManager.disconnect_all()
   except:
     pass
-  Core.runtime.restart()
+  #Core.runtime.restart()
+  cdir = app.updater.pluginContentsDir
+  plist = Core.storage.join_path(cdir, 'Info.plist')
+  plistData = Core.storage.load(plist)
+  Core.storage.save(plist, plistData)
   return MessageContainer("Restarted", "Newzworthy is restarting")
   
 ####################################################################################################
@@ -159,9 +178,11 @@ def MainMenu():
   global nntp
   global app
   global nzb
-  
+  global loglevel
+  loglevel = int(Prefs['NWLogLevel'])
   # Set the right NZB servers to use
-  if not loggedInNZBService:
+  log(5, funcName, 'NZBService:', Prefs['NZBService'])
+  if not loggedInNZBService or nzb.name != Prefs['NZBService']:
     log(3, funcName, 'Not logged into NZB Service, doing it now')
     # try to log into the NZB Service...
     nzb = setNZBService(retType='object')
@@ -173,13 +194,15 @@ def MainMenu():
   if not loggedInNNTP:
     log(3, funcName, 'Not logged into NNTP, doing it now')
     # try to log into the nntp service
-    nntp = nntpClient(app)
     try:
+      nntp = nntpClient(app)
       loggedInNNTP = nntp.connect()
     except:
+      err, id, tb = sys.exc_info()
+      log(2, funcName, 'Error logging into NNTP:', err, id, tb)
       loggedInNNTP = False
     finally:
-      nntp.disconnect()
+      if nntp: nntp.disconnect()
     log(3, funcName, "nntp login:", loggedInNNTP)
   else:
     log(3, funcName, "Already logged into nntp")
@@ -191,12 +214,19 @@ def MainMenu():
   
   if app.updater.updateNeeded:
     dir.Append(DirectoryItem(Route(Update), title=L('NW_UPDATE_AVAIL'), summary=app.updater.stableUpdateURL, thumb=R('update.png')))
+  
+  # If we recently upgraded we may need migrations
+  global app
+  if app.migrator.migrationNeeded:
+    dir.Append(DirectoryItem(Route(Migrations), title=L('CLK_MIGRATE'), thumb=R('update.png'), contextKey='a', contextArgs={}))
+    
   # Sub-menu for TV
   if loggedInNZBService and loggedInNNTP:
     log(5, funcName, 'Logged in, showing TV & Movie menu options')
     dir.Append(Function(DirectoryItem(BrowseTV, title=("Go to TV"), thumb=R('tv.jpg'), contextKey="a", contextArgs={})))
     # Sub-menu for Movies
     dir.Append(Function(DirectoryItem(BrowseMovies, title=("Go to Movies"), thumb=R('movies.jpg'),contextKey="a", contextArgs={})))
+
     # Special case just for searching by newzbinID
     #if(bool(Prefs['ShowSearchByNewzbinID']) and Prefs['NZBService']=="Newzbin"):
     #  dir.Append(Function(InputDirectoryItem(Search, title=("Search by Newzbin ID"), prompt=("Search by Newzbin ID"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="99"))
@@ -205,7 +235,7 @@ def MainMenu():
     if not loggedInNZBService:
       dir.Append(Function(DirectoryItem(configure, title=("Not logged in to " + Prefs["NZBService"]), thumb=R("x_red.png"), contextKey="a", contextArgs={})))
     if not loggedInNNTP:
-      dir.Append(Function(DirectoryItem(configure, title=("Not logged in to Usenet (NNTP)"), thumb=R("x_red.png"), contextKey="a", contextArgs={})))
+      dir.Append(DirectoryItem(Route(manageNNTPs), title=("Not logged in to Usenet (NNTP)"), thumb=R("x_red.png"), contextKey="a", contextArgs={}))
 
   # Show the troubleshooting options.  Not recommended, but can be very useful.
   if bool(Prefs['ShowDiags']):
@@ -219,9 +249,9 @@ def MainMenu():
   log(7, funcName, 'Showing setup options')
   dir.Append(Function(DirectoryItem(configure, title="Setup servers, usernames, and passwords", thumb=R('configuration.png'), contextKey="a", contextArgs={})))
   log(7, funcName, 'Showing Manage Queue')
-  dir.Append(DirectoryItem(Route(manageQueue), title=("Manage Download Queue (" + str(len(app.queue.downloadableItems)) + ")"), thumb=R('download_queue.png')))
+  dir.Append(DirectoryItem(Route(manageQueue), title=("Manage Download Queue (" + str(len(app.queue.downloadableItems)) + ")"), thumb=R('download_queue.png'), contextKey="a", contextArgs={}))
   log(7, funcName, 'Showing Completed Queue Management option')
-  dir.Append(DirectoryItem(Route(manageCompleteQueue), title=("View Completed Downloads (" + str(len(app.queue.completedItems)) + ")"), thumb=R('check_green.png')))
+  dir.Append(DirectoryItem(Route(manageCompleteQueue), title=("View Completed Downloads (" + str(len(app.queue.completedItems)) + ")"), thumb=R('check_green.png'), contextKey="a", contextArgs={}))
   log(7, funcName, 'Show Dir')
   return dir
 
@@ -244,18 +274,48 @@ def diagsMenu():
   dir.Append(DirectoryItem(Route(clearAllQueues), title="Clear all the queues", thumb=R('trashcan.png')))
   log(7, funcName, 'Showing "Show All Dicts"')
   dir.Append(Function(DirectoryItem(showAllDicts, title="Show All Dicts", contextKey="a", thumb=R('search.png'), contextArgs={})))
+  dir.Append(Function(DirectoryItem(listAllDicts, title='List All Dicts', contextKey="a", thumb=R('search.png'), contextArgs={})))
   #log(7, funcName, 'Show restart plugin')
+  dir.Append(DirectoryItem(Route(SaveDict), title='Save Dict', contextKey='a', contextArgs={}))
+  dir.Append(DirectoryItem(Route(resetDownloader), title='Reset Downloader', contextKey='a', contextArgs={}))
   dir.Append(DirectoryItem(Route(RestartNW), title='Restart Newzworthy Plugin', contextKey="a", contextArgs={}))
   return dir
 
 ####################################################################################################
+@route(routeBase + "Migrations")
+def Migrations():
+  funcName = '[Migrations]'
+  global app
+  app.downloader.stop_download_thread()
+  app.downloader.resetArticleQueue()
+  app.migrator.checkForMigrations()
+  app.migrator.run_migrations()
+#   if app.migrator.queueToPointFour:
+#     log(3, funcName, 'Migrating queue')
+#     app.migrator.migrateQueueToPointFour()
+#   if app.migrator.itemsToPointFour:
+#     log(3, funcName, 'Migrating items')
+#     global nzb
+#     app.migrator.migrateItemsToPointFour()
+#   if app.migrator.itemsToPointFourOne:
+#     log(3, funcName, 'Migrating items to 0.41')
+#     app.migrator.migrateItemsToPointFourOne()
+#     clearArticleDict(None)
+    
+#  Dict.Save()
+  time.sleep(3)
+  app.downloader.resetArticleQueue()
+  app.downloader.notPaused = True
+  app.downloader.start_download_thread()
+
 @route(routeBase + "Update")
 def Update():
   funcName = '[Update]'
   global app
   if app.updater.updateNeeded:
-    #app.updater.updateToStable()
-    message = "Update available, download at: " + app.updater.stableUpdateURL
+    app.updater.updateToStable()
+    message = "Updated to latest (" + str(app.updater.stableVersion) + ")"# available, download at: " + app.updater.stableUpdateURL
+    RestartNW()
   else:
     message = "No Updates Available"
   return MessageContainer("Updater", message)
@@ -264,6 +324,7 @@ def clearArticleDict(sender):
   funcName = "[clearArticleDict]"
   log(1, funcName, 'articleDict before clearing:', Dict[nzbItemsDict])
   Dict[nzbItemsDict] = {}
+  Dict['nzbItemsDict'] = {}
   log(1, funcName, 'articleDict after clearing:', Dict[nzbItemsDict])
   return MessageContainer("Cache Cleared", "All cached items have been cleared.")
 
@@ -307,6 +368,24 @@ def showAllDicts(sender):
   return dir
 
 ####################################################################################################
+def listAllDicts(sender):
+  funcName = '[listAllDicts]'
+  cm = ContextMenu(includeStandardItems=False)
+  #cm.Append(DirectoryItem(Route(deleteDict), title=('Delete')))
+  cm.Append(Function(DirectoryItem(deleteDict, title='Delete')))
+  dir = MediaContainer(contextMenu=cm, noCache=True, noHistory=True)
+  for thisDict in Dict:
+    dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=thisDict, contextKey=thisDict, contextArgs={}))
+  return dir
+####################################################################################################
+#@route(routeBase + 'deleteDict/{key}')
+def deleteDict(sender, key):
+  funcName = '[deleteDict]'
+  log(3, funcName, 'Deleting dict:', key)
+  del Dict[key]
+  SaveDict()
+  return listAllDicts(key)
+####################################################################################################
 def BrowseMovies(sender='nothing'):
   # Empty context menu, since there aren't any useful contextual options right now.
   cm = ContextMenu(includeStandardItems=False)
@@ -337,9 +416,13 @@ def BrowseTV(sender='nothing'):
       dir.Append(Function(DirectoryItem(BrowseTVFavorites,	title=("Browse TV Favorites (1 Week)"), thumb=R('one_week.png'), contextKey="a", contextArgs={}), days="7"))
       dir.Append(Function(DirectoryItem(BrowseTVFavorites,	title=("Browse TV Favorites (1 Month)"), thumb=R('one_month.png'), contextKey="a", contextArgs={}), days="30"))
       dir.Append(Function(DirectoryItem(BrowseTVFavorites,	 title=("Browse TV Favorites (All)"), thumb=R('infinity.png'), contextKey="a", contextArgs={}), days="0"))
-
   except:
     pass
+  if len(app.queue.downloadableItems) >= 1:
+    for item in app.queue.allItems:
+      if item.report.mediaType == 'TV':
+        pass
+        
   #Always let the user manage their favorites
   dir.Append(Function(DirectoryItem(ManageTVFavorites,	 title=("Manage the list of TV Favorites"), contextKey="a", contextArgs={})))  
   return dir
@@ -485,7 +568,14 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
   thisTitle = "TV > "
   if page>1: thisTitle += "Page " + str(page) + " > "
   thisTitle += title2
-
+  
+#  no_options_cm = ContextMenu(includeStandardItems=False)
+#  no_options_cm.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title="No options"))
+#  cancel_cm = ContextMenu(includeStandardItems=False)
+#  cancel_cm.Append(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL')))
+#  delete_cm = ContextMenu(includeStandardItems=False)
+#  delete_cm.Append(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL')))
+  
   dir = MediaContainer(viewGroup='Details', title2=thisTitle, noCache=False)
 
   # Go get the data
@@ -545,19 +635,17 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
 
 
             log(4, funcName, "Adding \"" + thisArticle.title + "\" to the dir")
-            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
-#             articleItem = Function(DirectoryItem(Article, thisArticle.title, thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID) #title2=title, fanart=fanart, thumb=thumb, rating=rating, duration=duration)
+
+            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size, contextMenu=media_context_menu(itemID=thisArticle.nzbID), contextKey=thisArticle.nzbID, contextArgs={}))
 
             # Add the item to the persistent-ish cache
             nzbItems[thisArticle.nzbID] = thisArticle
-            saveDict = True
-            #dir.Append(articleItem)
-
+            
           else: # The nzbID is already in the dict, therefore we can just pull it from cache
             log(4, funcName, "Cached: Adding \"" + nzbItems[thisArticle.nzbID].title + "\" from the cache.")
             thisArticle = nzbItems[thisArticle.nzbID]
-            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size))
-#            dir.Append(Function(DirectoryItem(Article, thisArticle.title, thisArticle.subtitle, summary=thisArticle.summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size), theArticleID=thisArticle.nzbID))
+            cm = media_context_menu(itemID=thisArticle.nzbID)
+            dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, rating=thisArticle.rating, infoLabel=thisArticle.size,contextMenu=cm, contextKey=thisArticle.nzbID, contextArgs={}))
 
         # Now handle the case where we want to consolidate dupes and we have more than one entry.
         # Note that we are still only returning some number of results in a single query to newzbin
@@ -605,8 +693,16 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   funcName="[Article]"
   
   if theArticle=='nothing' and not theArticleID=='':
-    nzbItems = Dict[nzbItemsDict]
-    theArticle=nzbItems[theArticleID]
+    try:
+      nzbItems = Dict[nzbItemsDict]
+      theArticle=nzbItems[theArticleID]
+    except KeyError:
+      x = app.queue.getItem(theArticleID)
+      if x:
+        theArticle = x.report
+      else:
+        return MessageContainer("No Article", "No Article Found")
+    
   
   #Determine what you want to show as the secondary window title
   if theArticle.mediaType=='TV':
@@ -618,18 +714,22 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   else:
     log(3, funcName, theArticle.title, "is an unknown media type (i.e. not a TV show nor a movie")
     title2 = theArticle.title
-
-  dir = MediaContainer(viewGroup='Details', title2=title2, noCache=True, noHistory=False, autoRefresh=1)
+  
+  cm = ContextMenu(includeStandardItems=False)
+  #cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL'))))
+  dir = MediaContainer(viewGroup='Details', title2=title2, noCache=True, noHistory=False, autoRefresh=1, contextMenu=cm)
+  more_options = False
+  
   try:
     if theArticle.fanart != "":
       dir.art = theArticle.fanart
   except:
     pass
-
+  
   #art = Function(DirectoryItem(StupidUselessFunction, subtitle=theArticle.subtitle))
   if app.queue.getItem(theArticle.nzbID) == False:
     #dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle), key="a"))
-    dir.Append(DirectoryItem(Route(AddReportToQueue, nzbID=theArticle.nzbID), title=L('ITM_QUEUE'), thumb=theArticle.thumb, subtitle=theArticle.title, summary=theArticle.attributes_and_summary))
+    dir.Append(DirectoryItem(Route(AddReportToQueue, nzbID=theArticle.nzbID), title=L('ITM_QUEUE'), thumb=theArticle.thumb, subtitle=theArticle.title, summary=theArticle.attributes_and_summary, contextKey=theArticle.nzbID, contextArgs={}))
 
   #########################################################################
   # Pausing is causing problems.
@@ -642,77 +742,150 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   #  dir.Append(DirectoryItem(Route(resumeDownload), title=L('Q_RESUME'), subtitle="You temporarily suspended downloads.  Resume them now.", summary="", thumb=R('pause_green.png')))
   #########################################################################
   if app.queue.getItem(theArticle.nzbID) != False:
+    #log(1, funcName, 'item states:\nitem.downloading:', item.downloading, '\nitem.failing:', item.failing,'\nitem.complete:', item.complete, '\nitem.recoverable:', item.recoverable, '\nitem.recovery_complete:', item.recovery_complete, '\nitem.repair_percent:', item.repair_percent, '\nitem.failed_articles:', len(item.failed_articles))
+
     item = app.queue.getItem(theArticle.nzbID)
-    dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle), key="a"))
+    log(9, funcName, 'item states:\nitem.downloading:', item.downloading, '\nitem.failing:', item.failing, '\nitem.downloadComplete:', item.downloadComplete, '\nitem.complete:', item.complete, '\nitem.recoverable:', item.recoverable, '\nitem.recovery_complete:', item.recovery_complete, '\nitem.repair_percent:', item.repair_percent, '\nitem.failed_articles:', len(item.failed_articles))
+
+    dir.Append(Function(DirectoryItem(StupidUselessFunction, title=theArticle.title, summary=theArticle.summary, thumb=theArticle.thumb, subtitle=theArticle.subtitle, contextKey=item.id, contextArgs={}), key="a"))
+    
+    #Weird case
+#    if item.downloading and item.complete and not item.downloadComplete:
+#      item.downloading = False
+#      item.downloadComplete = True
+#      item.save()
 
     if item.downloading:
       # One way to display all text if an item is still downloading
       overall_progress = progressText(item)
+      cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL'))))
       if item.play_ready and not item.failing:
-        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_DL'), subtitle=theArticle.subtitle, thumb=R('play_yellow.png'), infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary)))
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('DL_PLAY_DL'), subtitle=theArticle.subtitle, thumb=R('play_yellow.png'), infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary), contextKey=item.id, contextArgs={}))
       elif not item.play_ready and not item.failing:
-        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=(L('DL_DOWNLOADING_PLAY') + L('DL_RTP') + TimeText(item.play_ready_time)), thumb=R('download_green.png'), subtitle="Downloading enough to start playing", infoLabel=(('%.1f' % item.play_ready_percent)+'%'), summary=overall_progress))
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=(L('DL_DOWNLOADING_PLAY') + L('DL_RTP') + TimeText(item.play_ready_time)), thumb=R('download_green.png'), subtitle="Downloading enough to start playing", infoLabel=(('%.1f' % item.play_ready_percent)+'%'), summary=overall_progress, contextKey=item.id, contextArgs={}))
       elif item.failing: #item.failing==True
-        dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_DAMAGED'), thumb=R('download_green.png'), subtitle="Damaged files, can't play", infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary)))
-      # Cancel download option
-      dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), subtitle='Cancel and delete progress'))
-    elif item.complete:
+        dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_DAMAGED'), thumb=R('download_green.png'), subtitle="Damaged files, can't play", infoLabel=(('%.1f' % item.percent_complete)+'%'), summary=(overall_progress + '\n' + theArticle.summary), contextKey=item.id, contextArgs={}))
+      # Cancel download option - Removed due to Play button stupidity.  Moved to context items.
+      #dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), subtitle='Cancel and delete progress', contextKey=item.id, contextArgs={}))
+      #cm.Append(DirectoryItem(Route(context_menu_CancelDownload, id=item.id), title=L('CANCEL_DL'), contextKey=item.id, contextArgs={}))
+      more_options = True
+    elif item.downloadComplete:
+      #Item has finished downloading and saving files to disk
+      
+      if item.complete:
+        #Show options to play and remove the file
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png'), contextKey=item.id, contextArgs={}))
+        cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
       if item.failing:
-        try:
+        
+        # Show recovery status (hopefully)
+        if not item.recoverable and item.recovery_complete:
+          # The file is not recoverable
+          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_NOT_RECOVERABLE'), thumb=R('thumbs-down.png'), subtitle="Files damaged beyond repair", contextKey=item.id, contextArgs={}))
+          cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+          more_options = True
+        elif item.currently_recovering:
+          if item.repair_percent == 0:
+            # Still evaluating recoverability
+            dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_RECOVERING'), thumb=R('analyzing.png'), subtitle='Analyzing file for recoverability', contextKey=item.id, contextArgs={}))
+          else:
+            # Recovery is in progress
+            dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=F('DL_RECOVERING_PCT', (str(item.repair_percent)+'%')), thumb=R('thumbs-up.png'), subtitle='Repairing files', contextKey=item.id, contextArgs={}))
+        
+        elif item.currently_unpacking:
+          # The item is being unpacked
+          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title='Extracting media file', subtitle='Extracting media file', contextKey=item.id, contextArgs={}))
+        
+        else:# not item.currently_recovering and not item.currently_unpacking:
+          cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+          # Need to show the recover and extract buttons
           if not item.recovery_complete:
-            dir.Append(DirectoryItem(Route(Recover, nzbID=item.id), title="Recover"))
-        except:
-          dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
-      else:
-        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=L('PLAY_DL'), thumb=R('play_green.png')))
-      #Show the option to remove the file
-      dir.Append(DirectoryItem(Route(RemoveItemAction, id=item.id), title=L('REMOVE_DL'), thumb=R('trashcan.png')))
-    elif not item.downloading and not item.complete and item.failing:
-      # Show recovery status (hopefully)
-      if not item.recoverable and item.recovery_complete:
-        # The file is not recoverable
-        dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_NOT_RECOVERABLE'), thumb=R('thumbs-down.png'), subtitle="Files damaged beyond repair"))
-        dir.Append(DirectoryItem(Route(RemoveItemAction, id=item.id), title=L('REMOVE_DL'), thumb=R('trashcan.png')))
-      else:# item.recoverable and not item.recovery_complete:
-        if item.repair_percent == 0:
-          # Still evaluating recoverability
-          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=L('DL_RECOVERING'), thumb=R('analyzing.png'), subtitle='Analyzing file for recoverability'))
-        else:
-          dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=F('DL_RECOVERING_PCT', item.repair_percent), thumb=R('thumbs-up.png'), subtitle='Repairing files'))
-    else: #Must be queued for downloading
-      dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_QUEUED'), thumb=R('download_green.png'), subtitle="Download queued"))
-      dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png')))
-    #Show the option to delete the item
+            # We need to try recover the item
+            dir.Append(DirectoryItem(Route(Recover, nzbID=item.id), title="Recover", contextKey=item.id, contextArgs={}))
+            #dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title='Starting Recovery'))
+            #Recover(item.id)
+          else:
+            # Let the item be unpacked
+            if item.recoverable:
+              dir.Append(DirectoryItem(Route(Unpack, nzbID=item.id), title='Extract media file', subtitle='Media file needs to be extracted', contextKey=item.id, contextArgs={}))
+              #dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title='Starting media extraction'))
+              #Unpack(item.id)
+      #dir.Append(DirectoryItem(Route(RemoveItemAction, id=item.id), title=L('REMOVE_DL'), thumb=R('trashcan.png'), contextKey=item.id, contextArgs={}))
+      more_options = True
 
-  if len(app.queue.downloadableItems) >= 1:
-    dir.Append(DirectoryItem(Route(manageQueue), title=("View Download Queue (" + str(len(app.queue.downloadableItems)) + " items)"), thumb=R('download_queue.png')))
-  if len(app.queue.completedItems) >= 1:
-    dir.Append(DirectoryItem(Route(manageCompleteQueue), title=("View Completed Queue (" + str(len(app.queue.completedItems)) + " items)"), thumb=R('check_green.png')))
+    else: #Must be queued for downloading
+      dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=L('DL_QUEUED'), thumb=R('download_green.png'), subtitle="Download queued", contextKey=item.id, contextArgs={}))
+      cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL'))))
+      more_options = True
+    #dir.Append(DirectoryItem(Route(CancelDownloadAction, id=item.id), title=L('CANCEL_DL'), thumb=R('trashcan.png'), contextKey=item.id, contextArgs={}))
+      
+    #Show the option to delete the item
+  
+#  if more_options:
+#    dir.Append(PopupDirectoryItem(Route(item_more_options, id=item.id), title='Cancel and/or Delete'))
+#  if len(app.queue.downloadableItems) >= 1:
+#    dir.Append(DirectoryItem(Route(manageQueue), title=("View Download Queue (" + str(len(app.queue.downloadableItems)) + " items)"), thumb=R('download_queue.png')))
+#  if len(app.queue.completedItems) >= 1:
+#    dir.Append(DirectoryItem(Route(manageCompleteQueue), title=("View Completed Queue (" + str(len(app.queue.completedItems)) + " items)"), thumb=R('check_green.png')))
 
   #dir.Append(addToQueue)
+  if len(cm) == 0: cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
+  #log(1, funcName, 'len(cm):', len(cm))
   return dir
 
+####################################################################################################
+def media_context_menu(item=None, itemID=None):
+  funcName = '[media_context_menu]'
+  cm = ContextMenu(includeStandardItems=False)
+  if not item and itemID:
+    log(5, funcName, 'Getting item with id:', itemID)
+    item = app.queue.getItem(itemID)
+  if item:
+    log(5, funcName, 'Got this item:', item)
+    if item.play_ready and not item.complete:
+      log(5, funcName, 'Giving you a CANCEL context menu')
+      cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL'))))
+      #cm.Append(DirectoryItem(Route(context_menu_RemoveItem), title=L('CANCEL_DL')))
+    elif item.complete:
+      log(5, funcName, 'Giving you a REMOVE context menu')
+      cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+      #cm.Append(DirectoryItem(Route(context_menu_RemoveItem), title=L('REMOVE_DL')))
+    else:
+      log(5, funcName, 'Giving you a NO OPTIONS context menu')
+      cm.Append(Function(DirectoryItem(StupidUselessFunction, title=('No Options')), key='a'))      
+      #cm.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title="No Options"))
+  else:
+    log(5, funcName, 'Defaulting to no options context menu')
+    cm.Append(Function(DirectoryItem(StupidUselessFunction, title=('No Options')), key='a'))      
+    #cm.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title="No Options"))
+  return cm
 ####################################################################################################
 def progressText(item):
   funcName = '[progressText]'
   overall_progress = ''
   if item.downloading:
     #If it's ready to play, give the user the option here
-    log(7, funcName, 'progress')
+    #log(8, funcName, 'progress')
     progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
-    log(7, funcName, 'speed')
+    #log(8, funcName, 'speed')
     try:
       speed = 'Latest Speed: ' + str(convert_bytes(app.nntpManager.speed)) + '\nAverage Speed: ' + str(convert_bytes(item.speed))
       progress_speed = progress + '\n' + speed
     except:
       progress_speed = progress
-    log(7, funcName, 'Ready to play')
+    #log(8, funcName, 'Ready to play')
     rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
-    damage = "***" + L('DL_DAMAGE_RECOVERY_NOTICE') + "***" + '\n'
+    if item.failing:
+      if len(item.failed_articles) <= (item.nzb.total_recovery_blocks * .85):
+        damage = "***" + L('DL_DAMAGE_RECOVERY_NOTICE') + "***" + '\n'
+      else:
+        damage = '!!!\n' + F('DL_DAMAGE_WARNING', len(item.failed_articles), item.nzb.total_recovery_blocks) + '\n!!!\n'
+    
     rtp_progress_speed = rtp + '\n' + progress_speed
     #log(7, funcName, 'incoming files:', len(item.incoming_files), 'nzb rars:', len(item.nzb.rars))
-    log(7, funcName, 'rar progress')
+    #log(8, funcName, 'rar progress')
     rar_progress = F('DL_RAR_PROGRESS', len(item.incoming_files), len(item.nzb.rars))
+    
     if Prefs['ShowRARProgress']:
       if item.play_ready and not item.failing:
         overall_progress = rar_progress + '\n' + progress_speed
@@ -728,7 +901,7 @@ def progressText(item):
       elif not item.play_ready and not item.failing:
         overall_progress = rtp_progress_speed
       #overall_progress = rtp_progress_speed
-  log(7, funcName, 'overall progress:', overall_progress)
+  #log(7, funcName, 'overall progress:', overall_progress)
   return overall_progress
 
 ####################################################################################################
@@ -736,7 +909,11 @@ def progressText(item):
 def Recover(nzbID):
   item = app.queue.getItem(nzbID)
   item.recover_par()
-  
+
+@route(routeBase + 'Unpack/{nzbID}')
+def Unpack(nzbID):
+  item = app.queue.getItem(nzbID)
+  item.unpack(item.nzb.rars[0].name)
 ####################################################################################################
 @route(routeBase + 'AddReportToQueue/{nzbID}')
 def AddReportToQueue(nzbID, article='nothing'):
@@ -748,11 +925,12 @@ def AddReportToQueue(nzbID, article='nothing'):
   if article=='nothing':
     nzbItems = Dict[nzbItemsDict]
     article = nzbItems[nzbID]
-  item = queue.add(nzbID, nzb, article)
+  #item = queue.add(nzbID, nzb, article)
+  queue.add(nzbID, nzb, article)
   #item.download()
-  log(5, funcName, 'Items queued:', len(app.queue.items))
+  #log(5, funcName, 'Items queued:', len(app.queue.items))
   header = 'Item queued'
-  message = '"%s" has been added to your queue' % item.report.title
+  message = '"%s" has been added to your queue' % article.title #item.report.title
   return MessageContainer(header, message)
 
 ####################################################################################################
@@ -763,14 +941,24 @@ def manageCompleteQueue():
   # Some cleanup to avoid errors
   #if app.stream_initiator != None: app.stream_initiator = None
 
-
-  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=10)
+  cm = ContextMenu(includeStandardItems=False)
+  cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=10, contextMenu=cm)
   
   if len(app.queue.completedItems) > 0:
     for item in app.queue.completedItems:
-      dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary))
+      #Weird case
+      if item.downloading and item.complete:
+        item.downloading = False
+        item.downloadComplete = True
+        item.save()
+      #dir.Append(Function(DirectoryItem(Article, title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextKey=item.id, contextArgs={}), theArticleID=item.id))
+      if item.complete:
+        dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=item.report.title, thumb=R('play_green.png'), subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextKey=item.id, contextArgs={}))
+      else:
+        dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextKey=item.id, contextArgs={}))
   else:
-    dir.Append(DirectoryItem(Route(StupidUselessFunction, key=''), title="No Completed Downloads", subtitle="There are no completed items to display", summary=""))   
+    dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title="No Completed Downloads", subtitle="There are no completed items to display", summary=""))   
   return dir
 ####################################################################################################
 @route(routeBase + 'manageQueue')
@@ -779,17 +967,12 @@ def manageQueue():
 
   # First check if there's anything in the queue
   log(7, funcName, 'Items in download queue:', len(app.queue.downloadableItems))
-#  if len(app.queue.downloadableItems) == 0:
-#    return MessageContainer('Nothing in queue', 'There are no items in the queue')
-    #MainMenu()
-  
-  # Some cleanup to avoid errors
-  #log(6, funcName, 'Clearing app.stream_initiator:', (app.stream_initiator != None))
-  #if app.stream_initiator != None: app.stream_initiator = None
-  
+    
   # Display the contents of the queue
+  cm = ContextMenu(includeStandardItems=False)
+  cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
   log(7, funcName, 'Creating dir')
-  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=1)
+  dir = MediaContainer(viewGroup="Details", noCache=True, autoRefresh=1, contextMenu=cm)
   ############################################################
   # Pausing is causing problems.  Commenting it out in
   # hope of fixing it one day
@@ -803,27 +986,18 @@ def manageQueue():
     dir.Append(DirectoryItem(Route(StupidUselessFunction, key=""), title="0 items in download queue", subtitle="Nothing to download", summary=""))
   log(7, funcName, 'Looking at each item in queue')
   for item in app.queue.downloadableItems:
+    
+    #Weird case
+#    if item.downloading and item.complete and not item.downloadComplete:
+#      item.downloading = False
+#      item.downloadComplete = True
+#      item.save()
+#      continue
+    
     log(7, funcName, 'Examining:', item.report.title)
     subtitle = ' '
     summary = ' '
-#     progress = 'Progress: ' + (('%.1f' % item.percent_complete) + '%')
-#     speed = 'Speed: ' + str(convert_bytes(app.nntpManager.speed))
-#     progress_speed = progress + '\n' + speed
-#     rtp = 'Ready to play: ' + (('%.1f' % item.play_ready_percent) + '%')
-#     rtp_progress_speed = rtp + '\n' + progress_speed
-#     rar_progress = ('Downloaded %s out of %s RARs' % (str(len(item.incoming_files)), str(len(item.nzb.rars))))
-#     if Prefs['ShowRARProgress']:
-#       if item.play_ready:
-#         overall_progress = rar_progress + '\n' + progress_speed
-#       else:
-#         overall_progress = rar_progress + '\n' + rtp_progress_speed
-#     else:
-#       overall_progress = rtp_progress_speed
     overall_progress = progressText(item)
-    #if item.complete:
-    #  log(7, funcName, 'item.complete:', item.complete)
-    #  subtitle = L('DL_COMPLETE')
-    #  summary = progress_speed + "\n" + item.report.summary
 
     if item.play_ready and not item.failing:
       log(7, funcName, 'item.play_ready:', item.play_ready)
@@ -850,9 +1024,9 @@ def manageQueue():
       #summary = item.report.summary
     summary += "\n" + item.report.summary
     log(7, funcName, 'Queue item:', item.report.title+': subtitle:', subtitle, 'summary:', summary)
-    log(7, funcName, 'Found in queue:', item)
+    log(7, funcName, 'Found in queue:', item.report.title)
     
-    dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=subtitle, summary=summary))
+    dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=subtitle, summary=summary, contextKey=item.id, contextArgs={}))
 
   return dir
 
@@ -887,6 +1061,16 @@ def StartStreamAction(id):
   if item.play_ready or item.complete:
     return Redirect(item.stream)
 
+@route(routeBase + 'resetDownloader')
+def resetDownloader():
+  funcName = '[resetDownloader]'
+  log(5, funcName, 'Stopping downloader')
+  app.downloader.stop_download_thread()
+  app.downloader.resetArticleQueue()
+  time.sleep(1)
+  app.downloader.notPaused = True
+  app.downloader.start_download_thread()
+  
 @route(routeBase + 'pauseDownload')
 def pauseDownload():
   funcName = "[pauseDownload]"
@@ -906,6 +1090,7 @@ def CancelDownloadAction(id):
   funcName = "[CancelDownloadAction]"
   log(5, funcName, "Canceling the download for", id)
   # Get the item so you can remove it from all the queues
+  global app
   item = app.queue.getItem(id)
   if item.downloading:
     log(5, funcName, "Pausing the downloader task")
@@ -915,7 +1100,7 @@ def CancelDownloadAction(id):
       #log(7, funcName, "waiting for the downloads to stop.")
       #sleep(1)
   # Remove the item from the queue
-  app.queue.items.remove(item)
+  app.queue.items.remove(id)
   folderDeleted = item.delete()
   log(7, funcName, 'deleted folder:', folderDeleted)
   # Restart the downloader task
@@ -924,9 +1109,6 @@ def CancelDownloadAction(id):
     app.downloader.resetArticleQueue()
     app.downloader.notPaused = True
     app.downloader.start_download_thread()
-  
-  #return True
-
 
 @route(routeBase + 'queue/{id}/remove')
 def RemoveItemAction(id):
@@ -936,13 +1118,36 @@ def RemoveItemAction(id):
   folderDeleted = item.delete()
   log(7, funcName, 'Folder deleted:', folderDeleted)
   if folderDeleted:
-    app.queue.items.remove(item)
+    app.queue.items.remove(id)
   else:
     return MessageContainer("Error", "Item not deleted: " + str(item))
   
   return MessageContainer("Successfully Deleted", "The item was successfully deleted.")
 #  return True
 
+@route(routeBase + 'item_contextual_options/{id}')
+def item_contextual_options(id):
+  global app
+  item = app.queue.getItem(id)
+  dir = MediaContainer(title="More Options")
+  dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title="Abort!"))
+  if item.complete:
+    dir.Append(DirectoryItem(Route(RemoveItemAction, id=id), title="Remove"))
+  else:
+    dir.Append(DirectoryItem(Route(CancelDownloadAction, id=id), title="Cancel and Delete"))
+  return dir
+    
+@route(routeBase + 'context_menu_RemoveItem/')
+def context_menu_RemoveItem(sender, key):
+  item = app.queue.getItem(key)
+  if item.downloadComplete:
+    return RemoveItemAction(key)
+  else:
+    CancelDownloadAction(key)
+
+#@route(routeBase + 'context_menu_CancelDownload/{key}')
+#def context_menu_CancelDownload(key):
+#  CancelDownloadAction(key)
 ####################################################################################################
 def Search(sender, query, category):
   funcName = "[Search] "
@@ -1088,8 +1293,8 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
               log(8, funcName, 'Got imdb data:', thisArticle.imdbDict)
               log(7, funcName, 'Getting tmdb metadata:', thisArticle.moreInfo)
               thisArticle.tmdbDict = tmdb_getMetaData(thisArticle.moreInfo)
-              log(7, funcName, 'Getting mpdbThumb:', thisArticle.moreInfo)
-              thisArticle.mpdbThumb = movieposterdb_getThumb(thisArticle.moreInfo)
+              #log(7, funcName, 'Getting mpdbThumb:', thisArticle.moreInfo)
+              #thisArticle.mpdbThumb = movieposterdb_getThumb(thisArticle.moreInfo)
               try:
                 thisArticle.description = thisArticle.imdbDict["desc"]#.encode('utf-8')
                 try:
@@ -1102,7 +1307,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
               try:
                 thisArticle.thumb = thisArticle.imdbDict["thumb"]
                 if thisArticle.thumb == "":
-                  thisArticle.thumb = mpdbThumb
+                  #thisArticle.thumb = mpdbThumb
                   if thisArticle.thumb == "":
                     thisArticle.thumb = tmdbDict["thumb"]
               except:
@@ -1147,7 +1352,17 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
 
 ####################################################################################################
 def getTVRage_metadata(tvRageUrl):
-  returnDict = {}
+#  returnDict = {}
+  try:
+    tvRageItems = Dict[tvRageItemsDict]
+    if tvRageUrl in tvRageItems:
+      log(7, funcName, 'Found existing tvRage information for', tvRageUrl)
+      return tvRageItems[tvRageUrl]
+    else:
+      returnDict = {}
+  except:
+    returnDict = {}
+    
   funcName = "[getTVRage_metadata] "
   log(4, funcName + "Getting Metadata for URL: " + tvRageUrl)
   #grab show duration
@@ -1254,6 +1469,8 @@ def getTVRage_metadata(tvRageUrl):
     returnDict["thumb"] = ""
     return False
 
+  tvRageItems[tvRageUrl] = returnDict
+  Dict[tvRageItemsDict] = tvRageItems
   #Log(returnDict)
   return returnDict
 
@@ -1261,7 +1478,7 @@ def getIMDB_metadata(imdbID,getDuration=True,getSynopsis=True,getThumb=True,getR
   funcName = "[getIMDB_metadata]"
   returnDict = {}
   respElements = None
-  url = "http://www.imdb.com/title/" + imdbID
+  url = "http://www.imdb.com/title/" + imdbID + '/'
   try:
     resp = HTTP.Request(url, cacheTime=longCacheTime, immediate=True)
     log(8, funcName, "RequestURL:", url, "... Response:", resp)

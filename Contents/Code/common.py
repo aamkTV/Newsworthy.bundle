@@ -2,6 +2,7 @@
 #from collections import deque
 #import copy
 import time
+import sys
 
 ExpandedSearchTimeFactor = 10
 ExpandedSearchMaxResultsFactor = 10
@@ -9,16 +10,24 @@ ExpandedSearchMaxResultsFactor = 10
 TVFavesDictVersion = 1
 nzbItemsDictVersion = 1
 nzbConfigDictVersion = 1
-nntpConfigDictVersion = 1
+nntpConfigDictVersion = 2
 FSConfigDictVersion = 1
 mediaItemsQueueVersion = ''
+tvRageItemsDictVersion = 1
+imdbItemsDictVersion = 1
+nntpSettingDictVersion = 1
 
 TVFavesDict = 'TVFavesDict' + '_v' + str(TVFavesDictVersion)
 nzbItemsDict = 'nzbItemsDict' + '_v' + str(nzbItemsDictVersion)
 nzbConfigDict = 'nzbConfigDict' + '_v' + str(nzbConfigDictVersion)
 nntpConfigDict = 'nntpConfigDict' + '_v' + str(nntpConfigDictVersion)
 FSConfigDict = 'FSConfigDict' + '_v' + str(FSConfigDictVersion)
-routeBase = '/video/newzworthy/'
+tvRageItemsDict = 'tvRageItemsDict' + '_v' + str(tvRageItemsDictVersion)
+imdbItemsDict = 'imdbItemsDict' + '_v' + str(imdbItemsDictVersion)
+nntpSettingDict = 'nntpSettingDict' + '_v' + str(nntpSettingDictVersion)
+
+PREFIX      = "/video/newzworthy"
+routeBase   = PREFIX + '/'
 
 MovieSearchDays_Default = "0" # 0 is a special case, and basically means no filter
 TVSearchDays_Default = "0" # 0 is a special case, and basically means no filter
@@ -30,12 +39,14 @@ TVRAGE_CACHE_TIME  = 0
 IMDB_CACHE_TIME    = 30
 NEWZBIN_NAMESPACE  = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 longCacheTime      = 600
-loglevel           = 7
+loglevel           = int(Prefs['NWLogLevel'])
+LOGLEVEL_WATCHER_TIMEOUT = 3
 
-#For testing purposes only
+#For negative testing purposes only
 test_article_failure = []
+test_server_failure = ['news.giganews.com', 'ssl.astraweb.com']
 
-####################################################################################################
+############################################################################################################################
 # loglevels:
 # 1: Errors only
 # 2: Info + Errors
@@ -45,7 +56,8 @@ test_article_failure = []
 # 6: CRAZY LEVELS OF DEBUG!!!! - I had to invent this level because I found even more useless stuff to log!
 # 7: STUPID SHIT BEING LOGGED!!! - Don't use this unless you hate your filesystem and performance!!!!
 # 8: I shouldn't even tell you about this level, but it's nice to know how to see some of the HTTP/XML request/responses
-####################################################################################################
+# 9: Why do I even have this level?  There can't possibly be any value to anything logged at this level.  Or is there?
+############################################################################################################################
 class nntpException(Exception):
   def __init__(self, mesg, id):
     self.mesg = mesg
@@ -54,9 +66,9 @@ class nntpException(Exception):
 class AppService(object):
   def __init__(self, app):
     funcName = "[common.AppService]"
-    log(4, funcName, 'Received app:', str(app))
+    log(9, funcName, 'Received app:', str(app))
     self.app = app
-    log(5, funcName, 'calling init()')
+    log(9, funcName, 'calling init()')
     self.init()
   
   def init(self):
@@ -64,29 +76,25 @@ class AppService(object):
     pass
 
 class NWQueue(object):
-  """Used to persist lists using Plex Framework's Dict capability"""
+  """Used to persist lists using Plex Framework's Data capability"""
   def __init__(self, name):
     funcName = '[NWQueue.__init__][' + name + ']'
     self.name = name
     self.dictName = ("NWQueue_" + name)
     self.queueDictName = self.dictName + '_queue'
-    self.dequeuedDictName = self.dictName + '_dequeued'
     self.queue = []
-    self.dequeued = []
     self.queueLock = Thread.Lock('queueLock')
-    self.dequeuedLock = Thread.Lock('dequeuedLock')
     self.queueCopyLock = Thread.Lock('queueCopyLock')
-    self.dequeuedCopyLock = Thread.Lock('dequeuedCopyLock')
     self.useLocking = True
     self.saveLocking = True
     self.lastSave = 0
     self.saveInterval = 0 #seconds
     self.copyBeforeSave = False
     
-    if self.queueDictName in Dict:
+    if Data.Exists(self.queueDictName):
       try:
         log(5, funcName, self.queueDictName, 'found!')
-        savedQueue = Dict[self.queueDictName]
+        savedQueue = Data.LoadObject(self.queueDictName)
         log(7, funcName, 'Found:', savedQueue)
         self.queue.extend(savedQueue)
         log(5, funcName, self.queueDictName, 'length retrieved:',len(self.queue))
@@ -97,36 +105,18 @@ class NWQueue(object):
         pass #self.save()
     else:
       log(5, funcName, self.queueDictName, 'not found, it will be created')
-      #self.save()
 
-    if self.dequeuedDictName in Dict:
-      try:
-        log(5, funcName, self.dequeuedDictName, 'found!')
-        savedQueue = Dict[self.dequeuedDictName]
-        log(7, funcName, 'Found:', savedQueue)
-        self.dequeued.extend(savedQueue)
-        log(5, funcName, self.dequeuedDictName, 'length retrieved:',len(self.dequeued))
-      except:
-        log(5, funcName, self.dictName, 'error retrieving saved dequeued, recreating')
-        log(7, funcName, self.dictName, Exception)
-      finally:
-        pass #self.save()
-    else:
-      log(5, funcName, self.dequeuedDictName, 'not found, it will be created')
-      #self.save()
     self.save()
   ##end __init__
   def __repr__(self):
     return self.queue
   def __len__(self):
     return len(self.queue)
-    #return self.queue.qsize()
   def __iter__(self):
     return self.queue
   
   def reset(self):
     self.queue = []
-    self.dequeued = []
     self.save()
 
   def append(self, item):
@@ -166,21 +156,18 @@ class NWQueue(object):
     log(7, funcName, 'Getting an item from the queue')
     try:
       if self.useLocking: Thread.AcquireLock(self.queueLock)
-      if self.useLocking: Thread.AcquireLock(self.dequeuedLock)
       if position > 0:
         item=self.queue.pop()
       else:
         item=self.queue.pop(position)
       
       #log(7, funcName, 'Popped item:', item)
-      self.dequeued.append(item)
       self.save()
     except:
       log(1, funcName, 'Error popping item')
       raise
       item = False
     finally:
-      if self.useLocking: Thread.ReleaseLock(self.dequeuedLock)
       if self.useLocking: Thread.ReleaseLock(self.queueLock)
       return item
   def remove(self, item):
@@ -194,18 +181,12 @@ class NWQueue(object):
         self.queue.remove(item)
       except:
         pass
-      try:
-        if self.useLocking: Thread.AcquireLock(self.dequeuedLock)
-        self.dequeued.remove(item)
-      except:
-        pass
       self.save()
       resp = True
     except:
       resp = False
     finally:
       if self.useLocking: Thread.ReleaseLock(self.queueLock)
-      if self.useLocking: Thread.ReleaseLock(self.dequeuedLock)
     return resp
   def save(self):
     funcName = "[" + self.dictName + ".save]"
@@ -215,9 +196,7 @@ class NWQueue(object):
     if rightNow - self.lastSave > self.saveInterval:
       try:
         if self.saveLocking: Thread.AcquireLock(self.queueCopyLock)
-        if self.saveLocking: Thread.AcquireLock(self.dequeuedCopyLock)
-        Dict[self.queueDictName] = []
-        Dict[self.dequeuedDictName] = []
+        #Dict[self.queueDictName] = []
         
         log(7, funcName, 'Saving queue', self.dictName)
         if self.copyBeforeSave:
@@ -226,36 +205,27 @@ class NWQueue(object):
           lastStep = 'Duplicating ' + self.dictName + ' queue'
           queueToSave.extend(self.queue)
           lastStep = 'Saving ' + self.dictName + ' queue'
-          Dict[self.queueDictName] = queueToSave
-          log(7, funcName, 'Saved', self.dictName, 'queue:', len(Dict[self.queueDictName]))
+          Data.SaveObject(self.queueDictName, queueToSave)
+          #Dict[self.queueDictName] = queueToSave
+          log(7, funcName, 'Saved', self.queueDictName)#, 'queue:', len(Dict[self.queueDictName]))
         else:
           lastStep = "Saving queue"
-          Dict[self.queueDictName] = self.queue
-          
-        log(7, funcName, 'Saving dequeue', self.dictName) 
-        if self.copyBeforeSave:
-          log(7, funcName, 'Duplicating', self.dictName, 'dequeued')
-          dequeuedToSave = []
-          lastStep = 'Duplicating ' + self.dictName + 'dequeued'
-          dequeuedToSave.extend(self.dequeued)
-          lastStep = 'Saving ' + self.dictName + ' dequeued'
-          Dict[self.dequeuedDictName] = dequeuedToSave
-          log(7, funcName, 'Saved', self.dictName, 'dequeued:', len(Dict[self.dequeuedDictName]))
-        else:
-          lastStep = "Saving dequeue"
-          Dict[self.dequeuedDictName] = self.dequeued
+          Data.SaveObject(self.queueDictName, self.queue)
+          #Dict[self.queueDictName] = self.queue
+          log(7, funcName, 'Saved', self.queueDictName)
       except:
         log(5, funcName, 'ERROR at step:', lastStep)
         raise
       finally:
         if self.saveLocking: Thread.ReleaseLock(self.queueCopyLock)
-        if self.saveLocking: Thread.ReleaseLock(self.dequeuedCopyLock)
         log(7, funcName, 'Setting lastSave time')
         self.lastSave = time.time()
 
 class NewzworthyApp(object):
   def __init__(self):
     funcName = "[common.NewzWorthyApp.__init__]"
+    self.loglevel = int(Prefs['NWLogLevel'])
+    Thread.Create(log_level_watcher)
     log(5, funcName, 'importing downloader')
     from downloader import Downloader
     log(5, funcName, 'importing Queue')
@@ -263,22 +233,25 @@ class NewzworthyApp(object):
     from unpacker import Unpacker, UnpackerManager
     from nntpclient import nntpManager
     from updater import Updater
+    from migrator import Migrator
+    from configuration import configuration
 
     try:
-      self.num_client_threads = int(Dict[nntpConfigDict]['nntpConnections'])
+      self.num_client_threads = int(Dict[nntpSettingDict]['TotalConnections'])
     except:
       self.num_client_threads = 1
     log(4, funcName, 'Initializing Queue')
     self.queue = Queue(self)
     log(4, funcName, 'Initializing Downloader')
-    self.downloader = Downloader(self)
-    self.unpacker_manager = UnpackerManager(self)
+    self.cfg = configuration(self)
+    self.nntpManager = nntpManager(self)
     self.recoverer = None
     self.stream_initiator = None
-    self.nntpManager = nntpManager(self)
     self.updater = Updater()
-    #self.service = Service(self)
-
+    self.migrator = Migrator(self)
+    self.downloader = Downloader(self)
+    self.unpacker_manager = UnpackerManager(self)
+    
 class article(object):
   def __init__(self):
     self.newzbinID = ''
@@ -369,13 +342,41 @@ class NZBService(object):
 #         log(6,funcName, 'found dir', item)
 
 ####################################################################################################
+
+def log_level_watcher():
+  Log.Info('log_level_watcher started')
+  while True:
+    try:
+      global loglevel
+      pref_log_level = int(Prefs['NWLogLevel'])
+      #if app.loglevel != pref_log_level:
+        #Log.Info('loglevel changed from ' + str(app.loglevel) + ' to ' + str(pref_log_level))
+        #loglevel = int(pref_log_level)
+      change_log_level(int(pref_log_level))
+    except:
+      Log.Critical('Unable to update loglevel')
+      raise
+    finally:
+      time.sleep(LOGLEVEL_WATCHER_TIMEOUT)
+
+def change_log_level(new_loglevel):
+  global loglevel
+  loglevel = int(new_loglevel)
+  
 def log(messageloglevel, *args):
-  # Use the built-in logging, combined with log levels
-  if (loglevel>=messageloglevel):
-    logmessage = "[Newzworthy Log] "# + message
-    for arg in args:
-      logmessage += " " + str(arg)
-    Log(logmessage)
+  try:
+    # Use the built-in logging, combined with log levels
+    #loglevel = int(Prefs['NWLogLevel'])
+    #loglevel = 7
+    global loglevel
+    if (loglevel>=messageloglevel):
+      logmessage = "[Newzworthy Log][" + str(messageloglevel) + "/" + str(loglevel) + "] "# + message
+      for arg in args:
+        logmessage += " " + str(arg)
+      Log(logmessage)
+  except:
+    ex, errmsg, tb = sys.exc_info()
+    Log('Failed to log message, here''s why: ' + str(errmsg))
   return True
 
 ####################################################################################################

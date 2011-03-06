@@ -4,7 +4,7 @@ import re
 ns_xpath = lambda el, xp: el.xpath(xp, namespaces={'nzb':'http://www.newzbin.com/DTD/2003/nzb'})
 
 # A list of the extensions we care about
-extensions = ['rar', 'par2', re.compile(r'r\d\d')]
+extensions = ['rar', 'par2', 'nfo', 'sfv', re.compile(r'r\d\d')]
 
 class NZArticle(object):
   def __init__(self, article_id, size, segment_number):
@@ -13,6 +13,14 @@ class NZArticle(object):
     self.segment_number = segment_number
     self.complete = False
     self.failed = False
+  def __repr__(self):
+    ret = 'Segment Number: ' + str(self.segment_number)
+    ret += ', article id: ' + str(self.article_id)
+    return ret
+  def __str__(self):
+    ret = 'Segment Number: ' + str(self.segment_number)
+    ret += ', article id: ' + str(self.article_id)
+    return ret    
 
 class NZFile(object):
   def __init__(self, el):
@@ -21,14 +29,16 @@ class NZFile(object):
     self.ext = None
     self.articles = []
     self.size = 0
+    self.segments = []
     
+    self.loading = True
     
     """ Try to find the file's extension """
     
     subject = el.get('subject')
     
-    #part = subject[subject.find('"')+1:subject.rfind('"')]
-    part = self.determineFileName(subject)
+    part = subject[subject.find('"')+1:subject.rfind('"')]
+    #part = self.determineFileName(subject)
     
     # Check if there's something that appears to be a file extension
     index = part.rfind('.')
@@ -54,46 +64,20 @@ class NZFile(object):
       return
     
     self.name = part
-    
       
     """ Store the file segments in a list """
 
     for segment_el in ns_xpath(el, 'nzb:segments/nzb:segment'):
       article = NZArticle(segment_el.text, int(segment_el.get('bytes')), int(segment_el.get('number')))
-      self.articles.append(article)
-      self.size = self.size + article.size
-  
-  def determineFileName(self, subject):
-    #print "starting"
-    chr = ""
-    filename = ""
-    if subject.find('"')>=0:
-      chr = '"'
-      #print "found quotes"
-      #filename = subject[subject.find('"')+1:subject.rfind('"')]
-    elif subject.find("&quot;")>=0:
-      #print "found \&quot;"
-      chr = "&quot;"
-    elif subject.find("&#34;")>=0:
-      #print "found \&#34;"
-      chr = "&#34;"
+      if not article.segment_number in self.segment_numbers:
+        self.articles.append(article)
+        self.size = self.size + article.size
     
-    if chr != "":
-      #filename = subject[subject.find(chr)+(len(chr)):subject.rfind(chr)]
-      a = subject[:subject.rfind(chr)]
-      filename = a[a.rfind(chr)+len(chr):]
-    else:
-      #print ('looking for .')
-      a = subject[:subject.rfind(".")+4]
-      #print "a='" + str(a) + "'"
-      b = a[a.rfind(" ")+1:]
-      #print "b='" + str(b) + "'"
-      if b.count(";"):
-        filename = b[b.find(";")+1:]
-      else:
-        filename = b
-    #print "filename='" + str(filename) + "'"
-    return filename
+    self.loading = False
+    
+  def remove_articles(self):
+    self.articles = []
+    return True
     
   def __repr__(self):
     return 'NZFile(%s)' % self.name
@@ -118,7 +102,23 @@ class NZFile(object):
       if article_obj.complete:
         done = done + article_obj.size
     return done
+  
+  @property
+  def segment_numbers(self):
+    if self.loading: self.segments = []
+    if len(self.segments) <= 0:
+      for art in self.articles:
+        self.segments.append(art.segment_number)
+      self.segments.sort()
+    return self.segments
     
+  @property
+  def recovery_blocks(self):
+    blocks = 0
+    if self.ext == 'par2':
+      blocks_found = self.name[self.name.rfind("+")+1:self.name.rfind(".")]
+      if blocks_found.isdigit(): blocks = int(blocks_found)
+    return blocks
 
 class NZB(object):
   def __init__(self, el):
@@ -126,12 +126,14 @@ class NZB(object):
     self.rars = []
     self.pars = []
     self.total_bytes = 0
+    self.total_recovery_blocks = 0
     
     rars = []
     rnns = []
     
     for file_el in ns_xpath(el, 'nzb:file'):
       file_obj = NZFile(file_el)
+      log(9, funcName, 'File found:', file_obj.name, 'parts:', file_obj.articles)
 
       # Check that we matched a file extension
       if not file_obj.ext: continue
@@ -141,9 +143,16 @@ class NZB(object):
         #skipping sample files
         log(6, funcName, 'skipping sample file:', file_obj.name)
         continue
+      #Skip files with extensions that are irrelevant
+      #if file_obj.ext not in extensions: continue
+      
       if file_obj.ext == 'rar':
         rars.append(file_obj)
       elif file_obj.ext == 'par2':
+        self.total_recovery_blocks = self.total_recovery_blocks + file_obj.recovery_blocks
+        self.pars.append(file_obj)
+        #print ("Recovery blocks available: " + str(self.total_recovery_blocks))
+      elif file_obj.ext == 'nfo' or file_obj.ext == 'sfv':
         self.pars.append(file_obj)
       else:
         rnns.append(file_obj)

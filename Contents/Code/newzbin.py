@@ -177,6 +177,16 @@ def downloadNZBUrl(nzbID):
   return downloadURL
 
 ####################################################################################################
+def getComments(nzbID):
+  funcName = '[newzbin.getComments]'
+  url = "http://www.newzbin.com/browse/post/%s" % nzbID
+  try:
+    comments_el = XML.ElementFromURL(url, cacheTime=60).xpath('//div[@id="CommentsPH"]//div[@class="content nbcode"]')
+    return comments_el
+  except:
+    r = []
+    return r
+####################################################################################################
 def getArticleSummary(newzbinID):
   #global articleDict
   postHTML = HTML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, errors="ignore")

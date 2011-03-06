@@ -2,18 +2,42 @@ class Updater(object):
   def __init__(self):
     self.versionCheckURL = "http://www.newzworthy.info/updater/versioncheck.php"
     self.bundleName = "Newzworthy.bundle"
-    self.version  = .3
-    #######################
+    self.version  = 0.51
+    self.lastCheckTime = None
+    self.lastData = None
+    self.serverDataTimeout = 600
+    #########################################################################################
+    # Version 0.51
+    # Fix: Play button doesn't do as many wierd things anymore.  Had to move Cancel and Delete functions to context menus.
+    # New: Multiple NNTP (News) servers.  Automatically retry between them.
+    # New: Migrator to new NNTP dict structure
     #
-    # Next version requires a new version of media items with the following new attributes:
-    # self.recoverable
-    # self.recovery_complete
-    # self.failed_articles
-    # self.repair_percent
+    # Version 0.42
+    # Fix: Improperly assembled NZB files (e.g. missing segments in the file) results in hanging downloads.
+    # Fix: Installation failed
     #
-    # TODO: Write a migration function
-    ########################
-    self.serverJSON = self.serverData()
+    # Version .41
+    # Fix: If cached data is lost, downloaded items are inaccessable.  Removed dependency on Dict for downloaded item data.  Still check Dict first, but use the item's saved data if the cached data is unavailable.
+    # Fix: Newzworthy restarted after changing any preferences.
+    # Fix: Logs were getting filled up with JSON error (thanks superpea)
+    # New: Removed queue and item dependency on the slow and unreliable Dict
+    #      - Prior version users must run the Data Migrator.
+    # New: Timeouts connecting to nntp server are treated like missing articles.  The connections are retried a few times, then the article is skipped.
+    # New: Much improved handling of damaged files.  Added ability to recover manually if it didn't complete, and to extract if that never completed.
+    # New: Ability to change log level in the preferences.  Only advanced users should change this, or if you're requested by Newzworthy developers.
+    # New: Reduce the size of saved data when downloading is complete, making start up and scanning faster
+    # New: Lots of performance impacts.  (I want to know about slow-downs or memory issues)
+    ##########################################################################################
+    #self.serverJSON = self.serverData()
+  
+  @property
+  def serverJSON(self):
+    if not (self.lastCheckTime) or ((Datetime.Now() - self.lastCheckTime).seconds > self.serverDataTimeout):
+      self.lastData = self.serverData()
+      self.lastCheckTime = Datetime.Now()
+    else:
+      return self.lastData
+    return self.lastData
   
   @property
   def updateDir(self):
@@ -22,15 +46,21 @@ class Updater(object):
   @property
   def stableVersion(self):
     funcName = '[Updater.stableVersion]'
-    stable = self.serverJSON["stableVersion"]
+    if self.serverJSON:
+      stable = self.serverJSON["stableVersion"]
+    else:
+      stable = self.version
     log(3, funcName, "stable:", stable)
     return stable
     
   @property
   def betaVersion(self):
     funcName = '[Updater.betaVersion]'
-    if self.serverJSON["betaVersionExists"]:
-      beta = self.serverJSON["betaVersion"]
+    if self.serverJSON:
+      if self.serverJSON["betaVersionExists"]:
+        beta = self.serverJSON["betaVersion"]
+      else:
+        beta = False
     else:
       beta = False
     log(3, funcName, 'beta:', beta)
@@ -60,9 +90,12 @@ class Updater(object):
     
   def downloadStable(self, dir):
     funcName = '[Updater.downloadStable]'
+    log(6, funcName, 'downloading update')
     update = HTTP.Request(self.stableUpdateURL)
+    log(6, funcName, 'update downloaded, saving')
     #filename = self.stableUpdateURL[self.stableUpdateURL.rfind("/")+1:]
     Core.storage.save(Core.storage.join_path(dir, self.stableVersionFilename), update)
+    log(6, funcName, 'saved update', Core.storage.join_path(dir, self.stableVersionFilename))
     return Core.storage.join_path(dir, self.stableVersionFilename)
   
   @property
@@ -97,16 +130,19 @@ class Updater(object):
     ###########################################################
     # Unzipping directly over the current plugin contents
     # 
-    unzipFolder = Core.storage.join_path(self.pluginContentsDir)
+    unzipFolder = Core.storage.join_path(self.pluginDir)
+    log(5, funcName, 'Unzipping to', unzipFolder)
     self.unzipUpdate(downloadedFile, unzipFolder)
+    log(6, funcName, 'Unzipped', downloadedFile, 'to', unzipFolder)
     #
     ###########################################################
   def unzipUpdate(self, pathToFile, pathToUpdate):
     funcName = '[Updater.unzipUpdate]'
     info = Helper.Run('unzip','-o', pathToFile, '-d', pathToUpdate)
   
-  def pluginContentsDir(self):
-    funcName = '[Updater.contentsDir]'
+  @property
+  def pluginDir(self):
+    funcName = '[Updater.pluginDir]'
     tokens = self.updateDir.split("/")
     dir = "/"
     for token in tokens:
@@ -116,7 +152,13 @@ class Updater(object):
       else:
         dir += token + "/"
     
-    dir += "Plug-ins/" + self.bundleName + "/Contents/Test"
+    dir += "Plug-ins/"# + self.bundleName + "/Contents/"
+    return dir
+  
+  @property
+  def pluginContentsDir(self):
+    funcName = '[Updater.pluginContentsDir]'
+    dir = self.pluginDir + self.bundleName + "/Contents/"
     return dir
   
   def updateFiles(self, pathToFiles):
