@@ -1,0 +1,5 @@
+from .. import Code.common
+
+def Search(query):
+  oc = ObjectContainer()
+  return oc
