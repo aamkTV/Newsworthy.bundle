@@ -338,6 +338,7 @@ def Show_Updates():
   if app.updates.show_new:
     for version in app.updates.whats_new:
       dir.Append(DirectoryItem(Route(StupidUselessFunction, key="a"), title=("Version " + str(version)), subtitle=str(version), summary=app.updates.whats_new[version], contextKey=version, contextArgs={}))
+  dir.Sort("title", descending=True)
   return dir
   
 ####################################################################################################
@@ -583,17 +584,18 @@ def RemoveTVFavorite(sender, key):
 def BrowseTVFavorites(sender, days=TVSearchDays_Default, sort_by=None):
   funcName = "[BrowseTVFavorites] "
   global app
-  faves=Dict[TVFavesDict]
+  faves=[]
+  faves.extend(Dict[TVFavesDict])
   
   if len(faves)>=1:
     try:
       log(4, funcName, 'Retrieved these favorites:',faves)
-      query = app.nzb.concatSearchList(faves)
 
-      log(3, funcName + "query: " + query)
-      dir = SearchTV(sender, value=query, title2="Favorites", days=days, sort_by=sort_by)
+      #log(3, funcName + "query: " + query)
+      dir = SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
       return dir
     except:
+      log(1, funcName, 'Error:', sys.exc_info()[1])
       return MessageContainer("No favorites", "You have not saved any favorite TV shows to search.  Add some favorites and then try again.")
   else:
     return MessageContainer("No favorites", "You have not saved any favorite TV shows to search.  Add some favorites and then try again.")
@@ -608,38 +610,41 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
     consolidateDuplicates = False
   else:
     consolidateDuplicates = Prefs['consolidateTVDuplicates']
+    
+  if isinstance(value, str):
+    value = [value]
 
-  queryString = value
+  #queryString = value # <-- This is a []
 
   # I'm searching TV, I know the category
-  category = app.nzb.CAT_TV
+  #category = app.nzb.CAT_TV
 
   nzbItems = Dict[nzbItemsDict]
   allTitles = []
 
   # Add any video format filters
-  VideoFilters = app.nzb.getTVVideoFilters()
-  log(3, funcName + "Retrieved Video Filters: " + VideoFilters)
-  log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
-  if len(VideoFilters)>=1:
-    #This didn't work the way I wanted
-    #if invertVideoQuality:
-    #  log(4, funcName + "Inverting Video Filters")
-    #  queryString += " -(" + VideoFilters + ")"
-    #else:
-    #This would be the else statement... re-indent if you figure out the video filtering
-    queryString += " " + VideoFilters
-  log(4, funcName + "Added Video Filters, current queryString: " + queryString)
-  # Add any language filters
-  Languages = app.nzb.getTVLanguages()
-  if len(Languages)>=1:
-    queryString += " " + Languages
-  #Make the queryString usable by the intertubes
-  queryString = encodeText(queryString)
-  log(4, funcName + "Encoded queryString: " + queryString)
+#   VideoFilters = app.nzb.getTVVideoFilters()
+#   log(3, funcName + "Retrieved Video Filters: " + VideoFilters)
+#   log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
+#   if len(VideoFilters)>=1:
+#     #This didn't work the way I wanted
+#     #if invertVideoQuality:
+#     #  log(4, funcName + "Inverting Video Filters")
+#     #  queryString += " -(" + VideoFilters + ")"
+#     #else:
+#     #This would be the else statement... re-indent if you figure out the video filtering
+#     queryString += " " + VideoFilters
+#   log(4, funcName + "Added Video Filters, current queryString: " + queryString)
+#   # Add any language filters
+#   Languages = app.nzb.getTVLanguages()
+#   if len(Languages)>=1:
+#     queryString += " " + Languages
+#   #Make the queryString usable by the intertubes
+#   queryString = encodeText(queryString)
+#   log(4, funcName + "Encoded queryString: " + queryString)
 
   # Calculate the right number of seconds
-  period = app.nzb.calcPeriod(days)
+  #period = app.nzb.calcPeriod(days)
 
   #make a meaningful title for the window
   thisTitle = "TV > "
@@ -666,8 +671,9 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
   log(7, funcName, 'Getting the data')
   # Go get the data
   try:
-    allEntries = app.nzb.search(category, queryString, period, page)
+    allEntries = app.nzb.search(category=app.nzb.CAT_TV, query_list=value, period=app.nzb.calcPeriod(days), page=page)
   except:
+    log(1, funcName, 'Error searching:', sys.exc_info()[1])
     return MessageContainer('Error searching', "There was an error trying to search.  Please try again later or check your username, password, and membership status.")
   if not len(allEntries)>=1:
     return MessageContainer(header="No Matching Results", message="Your search did not yield any matches")
@@ -813,7 +819,7 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
   
   cm = ContextMenu(includeStandardItems=False)
   #cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('CANCEL_DL'))))
-  dir = MediaContainer(viewGroup='Details', title2=title2, noCache=True, noHistory=False, autoRefresh=1, contextMenu=cm)
+  dir = MediaContainer(viewGroup='Details', title2=title2, noCache=True, noHistory=False, autoRefresh=1, contextMenu=cm, replaceParent=False)
   more_options = False
   
   try:
@@ -1427,7 +1433,7 @@ def RemoveItemAction(id):
   else:
     return MessageContainer("Error", "Item not deleted: " + str(item))
   
-  return MessageContainer("Successfully Deleted", "The item was successfully deleted.")
+  #return MessageContainer("Successfully Deleted", "The item was successfully deleted.")
 #  return True
 
 @route(routeBase + 'item_contextual_options/{id}')
@@ -1460,6 +1466,7 @@ def Search(sender, query, category):
   SearchList = []
   SearchList.append(query)
   usableQuery = app.nzb.concatSearchList(SearchList)
+  usableQuery = query
 
   if category == "6": #movies
     dir = SearchMovies(sender, value=usableQuery, title2=query, days=TVSearchDays_Default, maxResults=str(app.nzb.RESULTS_PER_PAGE), offerExpanded=False)
@@ -1526,7 +1533,7 @@ def BrowseTVGenres(sender, filterBy):
 def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_Default, offerExpanded=False, expandedSearch=False, page=1, invertVideoQuality=False, allOneTitle=False, sort_by=None, key=None):
   funcName = "[SearchMovies] "
   global app
-  log(4, funcName + "Incoming variables: value=" + value + ", title2=" + title2 + ", maxResults=" + maxResults + ", days=" + days + ", page=" + str(page))
+  log(4, funcName + "Incoming variables: value:", value, ", title2:", title2, ", maxResults:", maxResults, ", days:", days, ", page:",page)
 
   # Determine if we will be consolidating duplicates to a single entry
   if allOneTitle:
@@ -1534,27 +1541,29 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
   else:
     consolidateDuplicates = bool(Prefs['consolidateMovieDuplicates'])
 
-  queryString = value
+  #NZB Search functions accept lists
+  if isinstance(value, str):
+    value = [value]
 
   # I know we are looking for movies
-  category = app.nzb.CAT_MOVIES
+  #category = app.nzb.CAT_MOVIES
 
 
   # Add any video format filters
-  VideoFilters = app.nzb.getMovieVideoFilters()
-  log(3, funcName + "Retrived Video Filters: " + VideoFilters)
-  log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
-  if len(VideoFilters)>=1: queryString += " " + VideoFilters
-  log(4, funcName + "Added Video Filters, current queryString: " + queryString)
-  # Add any language filters
-  Languages = app.nzb.getMovieLanguages()
-  if len(Languages)>=1: queryString += " " + Languages
-  #Make the queryString usable by the intertubes
-  queryString = encodeText(queryString)
-  log(4, funcName + "Encoded queryString: " + queryString)
+#   VideoFilters = app.nzb.getMovieVideoFilters()
+#   log(3, funcName + "Retrived Video Filters: " + VideoFilters)
+#   log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
+#   if len(VideoFilters)>=1: queryString += " " + VideoFilters
+#   log(4, funcName + "Added Video Filters, current queryString: " + queryString)
+#   # Add any language filters
+#   Languages = app.nzb.getMovieLanguages()
+#   if len(Languages)>=1: queryString += " " + Languages
+#   #Make the queryString usable by the intertubes
+#   queryString = encodeText(queryString)
+#   log(4, funcName + "Encoded queryString: " + queryString)
 
   # Calculate the right number of seconds
-  period = app.nzb.calcPeriod(days)
+#  period = app.nzb.calcPeriod(days)
 
   #make a meaningful title for the window
   thisTitle = "Movies > "
@@ -1580,7 +1589,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
   saveDict = True
 
   # Go get the data
-  allEntries = app.nzb.search(category, queryString, period, page)
+  allEntries = app.nzb.search(category=app.nzb.CAT_MOVIES, query_list=value, period=app.nzb.calcPeriod(days), page=page)
   if not len(allEntries)>=1:
     return MessageContainer(header="No Matching Results", message="Your search did not yield any matches")
 

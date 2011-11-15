@@ -56,11 +56,27 @@ def supportsGenres():
   return True
 
 ####################################################################################################
-def search(category, queryString, period, page=0):
+def search(category, query_list, period, page=0):
   funcName = '[newzbin.search]'
+
+  if len(query_list)>0 and query_list[0]<>'':
+    query_values = concatSearchList(query_list)
+  else:
+    query_values = ''
+
+  # Add any video format filters
+  if category == CAT_TV:
+    VideoFilters = getTVVideoFilters()
+    LanguageFilters = getTVLanguages()
+  elif category == CAT_MOVIES:
+    VideoFilters = getMovieVideoFilters()
+    LanguageFilters = getMovieLanguages()
+  if len(VideoFilters)>0: query_values += " " + VideoFilters
+  if len(LanguageFilters)>0: query_values += " " + LanguageFilters
+
   log(5, funcName, 'Constructing URL')
 
-  url = SEARCH_URL + "&searchaction=Search&u_post_results_amt=" + str(RESULTS_PER_PAGE) + "&category=" + category + "&q=" + queryString + "&" + sortFilter + "&u_v3_retention=" + period
+  url = SEARCH_URL + "&searchaction=Search&u_post_results_amt=" + str(RESULTS_PER_PAGE) + "&category=" + category + "&q=" + String.Quote(query_values, usePlus=True) + "&" + sortFilter + "&u_v3_retention=" + period
   log(5, funcName, "URL:", url)
     
   log(5, funcName, 'Checking page #:',page)
@@ -106,7 +122,7 @@ def search(category, queryString, period, page=0):
               cache_time = 0
               if category == CAT_MOVIES: cache_time = IMDB_CACHE_TIME
               if category == CAT_TV: cache_time = TVRAGE_CACHE_TIME
-              HTTP.PreCache(thisEntry.moreInfoURL, cacheTime=cache_time)
+              #HTTP.PreCache(thisEntry.moreInfoURL, cacheTime=cache_time)
             except:
               log(6, funcName, 'Could not find moreInfo URL for', thisEntry.title)
           log(5, funcName, 'moreInfo:', thisEntry.moreInfo)

@@ -66,7 +66,7 @@ def supportsGenres():
   return False
 
 ####################################################################################################
-def search(category, queryString, period, page):
+def search(category, query_list, period, page):
   funcName = '[' + name + '.search]'
   url = SEARCH_URL + "&q=" + queryString + category + "&age=" + period + sortFilter 
 

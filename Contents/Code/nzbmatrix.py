@@ -1,9 +1,5 @@
-#from PMS import *
-#from PMS.Objects import *
-#from PMS.Shortcuts import *
 import re
 import sys
-#import httplib
 from common import *
 
 name = 'NZBMatrix'
@@ -17,7 +13,7 @@ langFilter = "englishonly=1"
 sortFilter = "sort=0&type=asc"
 CACHE_TIME = 30 # seconds
 RESULTS_PER_PAGE = 50
-CAT_TV = "0"
+CAT_TV = "tv-all"
 CAT_MOVIES = "movies-all"
 HTTP_TIMEOUT = 60
 
@@ -26,8 +22,6 @@ TV_BROWSING = True
 TV_SEARCH = True
 MOVIE_SEARCH = True
 
-#USERNAME = ''
-#PASSWORD = ''
 LoggedIn = False
 cookie = None
 
@@ -117,9 +111,14 @@ def supportsGenres():
   return False
 
 ####################################################################################################
-def search(category, queryString, period, page):
+def search(category, query_list, period, page):
   funcName = '[nzbmatrix.search]'
-  url = SEARCH_URL + "search=" + queryString + "&cat=" + category + "&maxage=" + period + "&sort=" + sortFilter + "&searchin=name"#&gibberish=" + str(time.time())
+  
+  if len(query_list)>0 and query_list[0]<>'':
+    query_values = concatSearchList(query_list)
+  else:
+    query_values = ''
+  
 
   if page>1:
     log(4, funcName, 'page:', page)
@@ -128,26 +127,16 @@ def search(category, queryString, period, page):
     log(4, funcName, 'page is <1:', page)
 
   # Add any video format filters
-#   if category == CAT_TV:
-#     VideoFilters = getTVVideoFilters()
-#   elif category == CAT_MOVIES:
-#     VideoFilters = getMovieVideoFilters()
-#   
-#   log(3, funcName + "Retrieved Video Filters: " + VideoFilters)
-#   log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
-#   if len(VideoFilters)>=1:
-#     #This didn't work the way I wanted
-#     #if invertVideoQuality:
-#     #  log(4, funcName + "Inverting Video Filters")
-#     #  queryString += " -(" + VideoFilters + ")"
-#     #else:
-#     #This would be the else statement... re-indent if you figure out the video filtering
-#     queryString += " " + VideoFilters
-#   log(4, funcName + "Added Video Filters, current queryString: " + queryString)
-#   # Add any language filters
-#   Languages = nzb.getTVLanguages()
-#   if len(Languages)>=1:
-#     queryString += " " + Languages
+  if category == CAT_TV:
+    VideoFilters = getTVVideoFilters()
+    LanguageFilters = getTVLanguages()
+  elif category == CAT_MOVIES:
+    VideoFilters = getMovieVideoFilters()
+    LanguageFilters = getMovieLanguages()
+  if len(VideoFilters)>0: query_values += " " + VideoFilters
+  if len(LanguageFilters)>0: query_values += LanguageFilters
+
+  url = SEARCH_URL + "search=" + String.Quote(query_values,usePlus=False) + "&cat=" + category + "&maxage=" + period + "&sort=" + sortFilter + "&searchin=name"#&gibberish=" + str(time.time())
 
   log(3, funcName + "URL: " + url)
   #testresp = HTTP.Request(url)
@@ -273,50 +262,6 @@ def getTVRageURL(searchValue):
 
   searchURL = "http://www.tvrage.com/search.php?search=" + encodeText(searchValue)
   return searchURL
-#  x = HTTP.Request(searchURL)
-#  #log(6, funcName, 'headers.content:', x.content)
-#  log(6, funcName, 'x.headers:', x.headers)
-#  log(6, funcName, 'x.cookies:', HTTP.GetCookiesForURL(".tvrage.com"))
-# 
-#   try:
-#     log(6, funcName, 'Search URL:', searchURL)
-#     headers = HTTP.Request(searchURL).headers
-#     #log(6, funcName, 'Response:', resp.content)
-#     try:
-#       log(6, funcName, 'all headers', headers)
-#       location = headers['location']
-#       log(6, funcName, 'headers[\'location\']', location, ' (length:', len(location) + ")")
-#     except:
-#       log(6, funcName, 'location not found in response, returning nothing')
-#       location = ""
-#   except:
-#     pass
-# 
-#  return location
-####################################################################################################
-# def getTVRageURL(searchValue):
-# 
-#   funcName = '[nzbmatrix.getTVRageURL]'
-#   location = ''
-# 
-#   searchURL = "/search.php?search=" + encodeText(searchValue)
-# 
-#   httpConn = httplib.HTTPConnection("www.tvrage.com")
-#   try:
-#     log(6, funcName, 'Search URL:', searchURL)
-#     httpConn.request(method="GET", url=searchURL)
-#     httpResp = httpConn.getresponse()
-#     log(6, funcName, 'httpResp.status:',httpResp.status)
-#     try:
-#       location = httpResp.getheader('location')
-#       log(6, funcName, 'httpResp.header[\'location\']', location, ' (length:', len(location) + ")")
-#     except:
-#       log(6, funcName, 'location not found in response, returning nothing')
-#       location = ""
-#   except:
-#     pass
-# 
-#   return location
 ####################################################################################################
 def removeExtraWords(value):
   funcName = '[nzbmatrix.removeExtraWords]'
@@ -364,43 +309,22 @@ def downloadNZBUrl(nzbID):
 def getArticleSummary(nzbID):
   funcName = '[nzbmatrix.getArticleSummary]'
   postSummary = ''
-  #postHTML = XML.ElementFromURL("http://nzbmatrix.com/nzb-details.php?id=" + nzbID)
-
-  #global articleDict
-  #postHTML = XML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, True, errors="ignore")
-  #postSummary = ''
-  #includeSummaryDetails = True
-  #warningXML = postHTML.xpath('//div[@class="warning"]')
-  #for w in warningXML:
-  #  if w.text_content().find("INCOMPLETE FILES DETECTED") > 0:
-  #    postSummary += "*****************************\nWARNING - INCOMPLETE FILES DETECTED\n*****************************\n\n"
-  #    #Log(postSummary)
-  #    includeSummaryDetails = True
-  #  if w.text_content().find("identifying copyrighted content by the MPA.") > 0:
-  #    postSummary += "This Report has been identified as possibly identifying copyrighted content by the MPA and has been removed."
-  #    includeSummaryDetails = False
-  #    break
-  #if includeSummaryDetails:
-  #  postSummaryTmp =  postHTML.xpath("//div/table//th[contains(.,'Size')]/following-sibling::td[position()=1]")[0].text_content()
-  #  sizeInMB = postSummaryTmp[postSummaryTmp.find("ed:") + 5:postSummaryTmp.find("MB") + 2]
-  #  postSummary +=  "Size:" + sizeInMB #.replace("\t","").replace("\n","").replace("Encoded","\nEncoded").replace("Decoded","\nDecoded")
-  #  postSummary += "\n\n" + postHTML.xpath("//div/table//th[contains(.,'Attributes')]/following-sibling::td[position()=1]")[0].text_content().replace("\t","").replace("\n","").replace("Video","\nVideo").replace("Subtitled Language","\nSubtitles").replace("Language:","\nLanguage:").replace("Audio","\nAudio").replace(": ",":").replace(":",": ").replace("Video ","")
-  #  postSummary += "\n\nNewsgroups: " + postHTML.xpath("//div/table//th[contains(.,'Newsgroups')]/following-sibling::td[position()=1]")[0].text_content().replace("\n","").replace("\t","")
-  #  articleDict[newzbinID].downloadSizeInMB = float(sizeInMB.replace('MB','').replace(',',''))
   return postSummary
 
 ####################################################################################################
 def concatSearchList(thelist):
   funcName = "[nzbmatrix.concatSearchList]"
+  
+  query_start = "+("
 
-  query="+("
+  query = query_start
   for title in thelist:
     log(4, funcName + "adding '" + title + "' to the query")
     if title.find("-") >=0:
       title = title.replace("^", '')
     else:
       title = "\"" + title.replace("^", '') + "\""
-    if len(query)==2:
+    if len(query)==len(query_start):
       query+="(" + title + ")"
     else:
       query+=" (" + title + ")"
@@ -524,7 +448,7 @@ def getMovieVideoFilters():
 def getMovieLanguages():
   funcName = "[getMovieLanguages] "
   # Pretty much a static function for now, with room to grow
-  movieLanguages = "&englishonly=1"
+  movieLanguages = "" #"&englishonly=1"
   return movieLanguages
 
 ####################################################################################################

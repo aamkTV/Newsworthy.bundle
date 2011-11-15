@@ -64,6 +64,7 @@ class Recoverer(object):
             log(3, funcName, 'Repair is not needed, ending successfully')
             self.recoverable = True
             self.recovery_complete = True
+            self.repair_percent = 100
             self.proc.kill()
         
         if self.recoverable and not self.recovery_complete:

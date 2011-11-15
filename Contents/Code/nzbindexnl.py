@@ -10,6 +10,8 @@ defaultQuery = ''#"&dq=nfo"
 spamFilter = "&hideSpam=1"
 nfoFilter = "&hasnfo=1"
 
+max_query_items = 9
+
 CACHE_TIME = 30 # seconds
 CAT_TV = 'TV'
 CAT_MOVIES = 'Movies'
@@ -26,7 +28,7 @@ MOVIE_SEARCH = False
 def performLogin(nzbService, forceRetry=False):
   funcName = '[' + name + '.performLogin]'
 
-  url = SEARCH_URL + "?q=Please+dont+find+anything+that+matches&max=1"
+  url = SEARCH_URL + "?q=Please+dont+find+anything+that+matches+me+this+crazy+and_improbably+long+name&max=1"
   try:
     response = HTTP.Request(url)
     log(9, funcName, 'Response:', response)
@@ -48,9 +50,43 @@ def supportsGenres():
   return False
 
 ####################################################################################################
-def search(category, queryString, period, page):
+def search(category, query_list, period, page):
   funcName = '[' + name + '.search]'
-  url = SEARCH_URL + "?q=" + queryString + "&age=" + period + sortFilter + defaultQuery + spamFilter + nfoFilter + "&max=" + str(RESULTS_PER_PAGE)
+  
+  #query_values = concatSearchList(query_list)
+  query_values = query_list
+    
+  allEntries = []
+  new_list = []
+  while len(query_values) > 0:
+    while len(new_list) < max_query_items:
+      if len(query_values) > 0:
+        new_list.append(query_values.pop())
+        log(7, funcName, 'new_list:', new_list)
+      else:
+        log(7, funcName, 'Out of query_list items')
+        break
+    log(4, funcName, 'Complete query list:', new_list)
+    query_new_list = concatSearchList(new_list)
+    allEntries.extend(getResults(category=category, query_values=query_new_list, period=calcPeriod(period), page=page))
+    new_list = []
+  return allEntries
+    
+####################################################################################################
+def getResults(category, query_values, period, page):
+  funcName = '[' + name + '.getResults]'
+
+  # Add any video format filters
+  if category == CAT_TV:
+    VideoFilters = getTVVideoFilters()
+    LanguageFilters = getTVLanguages()
+  elif category == CAT_MOVIES:
+    VideoFilters = getMovieVideoFilters()
+    LanguageFilters = getMovieLanguages()
+  if len(VideoFilters)>0: query_values += " " + VideoFilters
+  if len(LanguageFilters)>0: query_values += " " + LanguageFilters
+  
+  url = SEARCH_URL + "?q=" + String.Quote(query_values) + "&age=" + period + sortFilter + defaultQuery + spamFilter + nfoFilter + "&max=" + str(RESULTS_PER_PAGE)
   
   # Pages for NZBIndex start at 0.  The default for Newzworthy is 1.  Decrement by 1 to avoid chaos.
   page = page - 1
@@ -65,7 +101,7 @@ def search(category, queryString, period, page):
   #log(4, funcName, "http response:",testresp)
   #allResults = XML.ElementFromURL(url, isHTML=True, cacheTime=CACHE_TIME).xpath('//table[@class="nzbtable grid"]//tr[@class!="nzbtable_head"]')
   try:
-    log(1, funcName, 'Getting results for', url)
+    log(5, funcName, 'Getting results for', url)
     try:
       allResults = XML.ElementFromURL(url, cacheTime=CACHE_TIME).xpath('//item')
     except:
@@ -92,15 +128,7 @@ def search(category, queryString, period, page):
         def processNZBEntry (entry=entry):
           entryCached = False
           thisEntry = article()
-          log(1, funcName, 'string:', XML.StringFromElement(entry))
-          #log(1, funcName, 'Title:', entry.xpath('//title'))
-          #i=1
-          #log(1, funcName, '# of Title:', len(entry.xpath('title')))
-          #for title in entry.xpath('title'):
-          #  log(1, funcName, 'Title', i, title.text)
-          #  i+=1
-          #log(1, funcName, 'Link:', entry.xpath('item/link')[0].text)
-          #log(1, funcName, 'guid:', entry.xpath('item/guid')[0].text)
+          log(8, funcName, 'string:', XML.StringFromElement(entry))
           title = entry.xpath('title')[0].text
           link = entry.xpath('link')[0].text
           guid = entry.xpath('guid')[0].text
@@ -260,29 +288,6 @@ def downloadNZBUrl(nzbID):
 def getArticleSummary(nzbID):
   funcName = '[' + name + '.getArticleSummary]'
   postSummary = ''
-  #postHTML = XML.ElementFromURL("http://nzbmatrix.com/nzb-details.php?id=" + nzbID)
-
-  #global articleDict
-  #postHTML = XML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, True, errors="ignore")
-  #postSummary = ''
-  #includeSummaryDetails = True
-  #warningXML = postHTML.xpath('//div[@class="warning"]')
-  #for w in warningXML:
-  #  if w.text_content().find("INCOMPLETE FILES DETECTED") > 0:
-  #    postSummary += "*****************************\nWARNING - INCOMPLETE FILES DETECTED\n*****************************\n\n"
-  #    #Log(postSummary)
-  #    includeSummaryDetails = True
-  #  if w.text_content().find("identifying copyrighted content by the MPA.") > 0:
-  #    postSummary += "This Report has been identified as possibly identifying copyrighted content by the MPA and has been removed."
-  #    includeSummaryDetails = False
-  #    break
-  #if includeSummaryDetails:
-  #  postSummaryTmp =  postHTML.xpath("//div/table//th[contains(.,'Size')]/following-sibling::td[position()=1]")[0].text_content()
-  #  sizeInMB = postSummaryTmp[postSummaryTmp.find("ed:") + 5:postSummaryTmp.find("MB") + 2]
-  #  postSummary +=  "Size:" + sizeInMB #.replace("\t","").replace("\n","").replace("Encoded","\nEncoded").replace("Decoded","\nDecoded")
-  #  postSummary += "\n\n" + postHTML.xpath("//div/table//th[contains(.,'Attributes')]/following-sibling::td[position()=1]")[0].text_content().replace("\t","").replace("\n","").replace("Video","\nVideo").replace("Subtitled Language","\nSubtitles").replace("Language:","\nLanguage:").replace("Audio","\nAudio").replace(": ",":").replace(":",": ").replace("Video ","")
-  #  postSummary += "\n\nNewsgroups: " + postHTML.xpath("//div/table//th[contains(.,'Newsgroups')]/following-sibling::td[position()=1]")[0].text_content().replace("\n","").replace("\t","")
-  #  articleDict[newzbinID].downloadSizeInMB = float(sizeInMB.replace('MB','').replace(',',''))
   return postSummary
 
 ####################################################################################################
@@ -312,7 +317,7 @@ def getTVVideoFilters():
   log(4, funcName, 'Getting TVVideoPreferences')
   ShowHD = (Prefs['ShowHDTV'])
   ShowSD = (Prefs['ShowSDTV'])
-  log(3, funcName + "ShowSDTV: " + str(ShowSD) + " and ShowHDTV: " + str(ShowHD))
+  log(8, funcName + "ShowSDTV: " + str(ShowSD) + " and ShowHDTV: " + str(ShowHD))
   # We are only covering the use cases where someone wants to intentionally filter by HD/SD content.
   # If both are set to true, no need to filter
   # If both are set to off, I'm assuming there's an error and will display all content

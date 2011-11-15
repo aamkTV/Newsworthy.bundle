@@ -2,7 +2,7 @@ import updater
 WHATS_NEW = 'whats_new_v%s'
 class updates(object):
   def __init__(self):
-    self.versions = ['0.80', '0.81']
+    self.versions = ['0.80', '0.81', '0.82']
   
   @property
   def show_new(self):

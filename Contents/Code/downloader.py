@@ -62,7 +62,10 @@ class Downloader(AppService):
     self.notPaused = False
     #log(7, funcName, self.client_pool[0])
     self.shutdown_clients()
-    self.app.unpacker_manager.end_unpacker(self.item.id)
+    try:
+      if self.item.id: self.app.unpacker_manager.end_unpacker(self.item.id)
+    except:
+      log(1, funcName, 'Error:', sys.exc_info()[1])
     #self.client_pool = Core.runtime.create_taskpool(self.app.num_client_threads)
 
   
