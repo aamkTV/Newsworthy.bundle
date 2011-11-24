@@ -1637,7 +1637,11 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
             thisArticle = nzbItems[thisArticle.nzbID]
             #Log("Pulled article from cache.")
 
-          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.metadata['date'].strftime('%x'), summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size, contextMenu=media_context_menu(itemID=thisArticle.nzbID, existingMenu=cm), air_release_date=get_metadata_date(thisArticle), contextKey=thisArticle.nzbID, contextArgs={}))
+          try:
+            subtitle = thisArticle.metadata['date'].strftime('%x')
+          except:
+            subtitle = ''
+          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size, contextMenu=media_context_menu(itemID=thisArticle.nzbID, existingMenu=cm), air_release_date=get_metadata_date(thisArticle), contextKey=thisArticle.nzbID, contextArgs={}))
     
     #if saveDict:
       #Dict[nzbItemsDict] = nzbItems
