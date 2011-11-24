@@ -5,11 +5,11 @@ from Recoverer import Recoverer
 import time
 import shutil
 import sys
+import subtitles
 from configuration import *
 from common import *
 #from common import AppService
 
-media_extensions = ['avi', 'mkv', 'mov', 'wmv', 'mp4', 'm4v', 'ts']
 app = None
 
 class MediaItem(object):
@@ -147,21 +147,26 @@ class MediaItem(object):
     self.remove()
     return True
   
-  @property
-  def archive_filename(self):
+  def archive_filename(self, file):
     funcName = '[queue.MediaItem.archive_filename]'
+    archive_filename = self.archive_basename + file[-4:]
+    return archive_filename
+  
+  @property
+  def archive_basename(self):
+    funcName = '[queue.MediaItem.archive_basename]'
     if self.report.mediaType == 'Movie':
-      archive_filename = cleanFileName(self.report.title) + self.mediaFileName[-4:]
+      archive_filename = cleanFileName(self.report.title)
     elif self.report.mediaType == 'TV':
       try:
         archive_filename = self.report.metadata['seriesName']
         if 'season' in self.report.metadata:
           archive_filename += " S" + str(self.report.metadata['season']) + "E" + str(self.report.metadata['episode'])
         if 'episode_title' in self.report.metadata: archive_filename += " - " + self.report.metadata['episode_title']
-        archive_filename = cleanFileName(archive_filename) + self.mediaFileName[-4:]
+        archive_filename = cleanFileName(archive_filename)
       except:
         log(3, funcName, 'Error:', sys.exc_info()[1])
-        archive_filename = cleanFileName(self.report.title) + self.mediaFileName[-4:]
+        archive_filename = cleanFileName(self.report.title)
     return archive_filename
   
   @property
@@ -196,17 +201,22 @@ class MediaItem(object):
     funcName = '[queue.MediaItem.archive]'
     self.archiving = True
     archive_path = self.archive_path
-    archive_filename = self.archive_filename
+    archive_filename = self.archive_filename(self.mediaFileName)
+    full_archive_location = Core.storage.join_path(archive_path, archive_filename)
     try:
       if self.archive_path:
         Core.storage.ensure_dirs(archive_path)
-        log(5, funcName, 'Saving', self.fullPathToMediaFile, 'to', Core.storage.join_path(archive_path, archive_filename))
-        Core.storage.copy(self.fullPathToMediaFile, Core.storage.join_path(archive_path, archive_filename))
-        if Core.storage.file_size(self.fullPathToMediaFile) == Core.storage.file_size(Core.storage.join_path(archive_path, archive_filename)):
+        log(5, funcName, 'Saving', self.fullPathToMediaFile, 'to', full_archive_location)
+        Core.storage.copy(self.fullPathToMediaFile, full_archive_location)
+        if Core.storage.file_size(self.fullPathToMediaFile) == Core.storage.file_size(full_archive_location):
           self.archived = True
         else:
-          log(1, funcName, 'Archived (' + str(Core.storage.file_size(Core.storage.join_path(archive_path, archive_filename))) + ') and original (' + str(Core.storage.file_size(self.fullPathToMediaFile)) + ') file sizes do not match!')
+          log(1, funcName, 'Archived(' + str(Core.storage.file_size(full_archive_location)) + ') and original (' + str(Core.storage.file_size(self.fullPathToMediaFile)) + ') file sizes do not match!  Item:', self.report.title)
           self.archived = False
+          try:
+            Core.storage.remove(full_archive_location)
+          except:
+            log(1, funcName, 'Error removing archived file:', sys.exc_info()[1])
     except:
       log(3, funcName, 'Error archving:', sys.exc_info()[1])
       self.archived = False
@@ -215,12 +225,31 @@ class MediaItem(object):
       self.archiving = False
       self.save()
     
-    try:
-      if delete:
-        self.delete()
-    except:
-      log(1, funcName, 'Error deleting after archiving:', sys.exc_info()[1])
+    #Save subtitles
+    
+    if self.archived:
+      try:
+        filelist = Core.storage.list_dir(self.completed_path)
+        for fl in filelist:
+          ext = fl[-3:]
+          if ext in subtitle_extensions:
+            try:
+              path_to_sub = Core.storage.join_path(self.completed_path, fl)
+              sub_archive_path = Core.storage.join_path(archive_path, self.archive_filename(fl))
+              log(5, funcName, 'Copying Subtitle:', fl, 'to', sub_archive_path)
+              Core.storage.copy(path_to_sub, sub_archive_path)
+            except:
+              log(1, funcName, 'Error copying subtitle', fl, 'Error:', sys.exc_info()[1])
+      except:
+        log(1, funcName, 'Error attempting to find and archive subtitles:', sys.exc_info()[1])
+
+      try:
+        if delete:
+          self.delete()
+      except:
+        log(1, funcName, 'Error deleting after archiving:', sys.exc_info()[1])
   
+ 
   def path(self, subdir):
     funcName = "[queue.MediaItem.path]"
     #log(5, funcName, 'returning this folder:', self.media_path, self.id, subdir)

@@ -51,5 +51,6 @@
   "WHATS_NEW": "What's new in this update?",
   "WHATS_NEW_V0.80": "* Fix: When switching NZB providers in Preferences, the new provider goes into use immediately.  Previously, a restart was required.\n* Fix: NZBMatrix searching is improved.  You can use the '-' to make better searches [e.g csi -((ny) (new york) (miami))].\n* New: Preliminary support for nzbindex.nl, which is a free nzb search engine.  Only support TV Favorites and TV Searches.  Movies are not supported yet.",
   "WHATS_NEW_V0.81": "* Fix: Oops, couldn't download NZBs for a few hours there.",
-  "WHATS_NEW_V0.82": "* Fix: Discovered NZBIndex only allows searching for 10 items at a time.  Changes to accommodate this required some pretty serious retooling, which will help with some longer-term features in the works.\n* Fix: Updates in this list show up in the right order."
+  "WHATS_NEW_V0.82": "* Fix: Discovered NZBIndex only allows searching for 10 items at a time.  Changes to accommodate this required some pretty serious retooling, which will help with some longer-term features in the works.\n* Fix: Updates in this list show up in the right order.",
+  "WHATS_NEW_V0.83": "* New: Ability to search for and download subtitles"
 }

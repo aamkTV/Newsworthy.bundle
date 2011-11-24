@@ -47,6 +47,9 @@ LOGLEVEL_WATCHER_TIMEOUT = 3
 TV_ARCHIVE_FOLDER = 'TV Archive'
 MOVIE_ARCHIVE_FOLDER = 'Movie Archive'
 
+media_extensions = ['avi', 'mkv', 'mov', 'wmv', 'mp4', 'm4v', '.ts']
+subtitle_extensions = ['srt', 'ass', 'sub', 'ssa']
+
 
 #For negative testing purposes only
 test_article_failure = []

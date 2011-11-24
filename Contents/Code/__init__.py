@@ -237,12 +237,12 @@ def MainMenu():
     if app.nzb.TV_BROWSING:
       dir.Append(Function(DirectoryItem(BrowseTV, title=("Go to TV"), thumb=R('tv.jpg'), contextKey="a", contextArgs={})))
     elif app.nzb.TV_SEARCH:
-      dir.Append(Function(InputDirectoryItem(Search, title=("Search TV"), prompt=("Search TV"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="8"))      
+      dir.Append(Function(InputDirectoryItem(Search, title=("Search TV"), prompt=("Search TV"), thumb=R('search.png'), contextKey="a", contextArgs={}), category=app.nzb.CAT_TV))      
     # Sub-menu for Movies
     if app.nzb.MOVIE_BROWSING:
       dir.Append(Function(DirectoryItem(BrowseMovies, title=("Go to Movies"), thumb=R('movies.jpg'),contextKey="a", contextArgs={})))
     elif app.nzb.MOVIE_SEARCH:
-      dir.Append(Function(InputDirectoryItem(Search, title=("Search Movies"), prompt=("Search Movies"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="6"))
+      dir.Append(Function(InputDirectoryItem(Search, title=("Search Movies"), prompt=("Search Movies"), thumb=R('search.png'), contextKey="a", contextArgs={}), category=app.nzb.CAT_MOVIES))
 
   else:
     log(5, funcName, 'Not logged in, showing option to update preferences')
@@ -480,26 +480,26 @@ def BrowseTV(sender='nothing'):
   # Empty context menu, since there aren't any useful contextual options right now.
   cm = ContextMenu(includeStandardItems=False)
   cm.Append(Function(DirectoryItem(StupidUselessFunction, title="No Options")))
-  dir = MediaContainer(viewGroup='Lists', contextMenu=cm, noCache=True, title2="TV")
+  dir = MediaContainer(viewGroup='Lists', contextMenu=cm, noCache=True, title2="TV", noHistory=False, replaceParent=False)
   
 
-  if app.nzb.supportsGenres(): dir.Append(Function(DirectoryItem(BrowseTVGenres,         title=("Browse Recent TV by Genre"), contextKey="a", contextArgs={}), filterBy="Video Genre"))
-  dir.Append(Function(InputDirectoryItem(Search,     title=("Search TV"), prompt=("Search TV"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="8"))
+  if app.nzb.supportsGenres(): dir.Append(Function(DirectoryItem(BrowseTVGenres, title=("Browse Recent TV by Genre"), contextKey="a", contextArgs={}), filterBy="Video Genre"))
+  dir.Append(Function(InputDirectoryItem(Search, title=("Search TV"), prompt=("Search TV"), thumb=R('search.png'), contextKey="a", contextArgs={}), category=app.nzb.CAT_TV))
   try:
     if len(Dict[TVFavesDict])>=1:
-      dir.Append(Function(DirectoryItem(BrowseTVFavorites,	title=("Browse TV Favorites (1 Day)"), thumb=R('one_day.png'), contextKey="a", contextArgs={}), days="1", sort_by="DATE"))
-      dir.Append(Function(DirectoryItem(BrowseTVFavorites,	title=("Browse TV Favorites (1 Week)"), thumb=R('one_week.png'), contextKey="a", contextArgs={}), days="7", sort_by="DATE"))
-      dir.Append(Function(DirectoryItem(BrowseTVFavorites,	title=("Browse TV Favorites (1 Month)"), thumb=R('one_month.png'), contextKey="a", contextArgs={}), days="30", sort_by="DATE"))
-      dir.Append(Function(DirectoryItem(BrowseTVFavorites,	 title=("Browse TV Favorites (All)"), thumb=R('infinity.png'), contextKey="a", contextArgs={}), days="0"))
+      dir.Append(Function(DirectoryItem(BrowseTVFavorites, title=("Browse TV Favorites (1 Day)"), thumb=R('one_day.png'), contextKey="a", contextArgs={}), days="1", sort_by="DATE"))
+      dir.Append(Function(DirectoryItem(BrowseTVFavorites, title=("Browse TV Favorites (1 Week)"), thumb=R('one_week.png'), contextKey="a", contextArgs={}), days="7", sort_by="DATE"))
+      dir.Append(Function(DirectoryItem(BrowseTVFavorites, title=("Browse TV Favorites (1 Month)"), thumb=R('one_month.png'), contextKey="a", contextArgs={}), days="30", sort_by="DATE"))
+      dir.Append(Function(DirectoryItem(BrowseTVFavorites, title=("Browse TV Favorites (All)"), thumb=R('infinity.png'), contextKey="a", contextArgs={}), days="0"))
   except:
     pass
-  if len(app.queue.downloadableItems) >= 1:
-    for item in app.queue.allItems:
-      if item.report.mediaType == 'TV':
-        pass
+#  if len(app.queue.downloadableItems) >= 1:
+#    for item in app.queue.allItems:
+#      if item.report.mediaType == 'TV':
+#        pass
         
   #Always let the user manage their favorites
-  dir.Append(Function(DirectoryItem(ManageTVFavorites,	 title=("Manage the list of TV Favorites"), contextKey="a", contextArgs={})))  
+  dir.Append(Function(DirectoryItem(ManageTVFavorites, title=("Manage the list of TV Favorites"), contextKey="a", contextArgs={})))  
   return dir
 
 ####################################################################################################
@@ -592,8 +592,7 @@ def BrowseTVFavorites(sender, days=TVSearchDays_Default, sort_by=None):
       log(4, funcName, 'Retrieved these favorites:',faves)
 
       #log(3, funcName + "query: " + query)
-      dir = SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
-      return dir
+      return SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
     except:
       log(1, funcName, 'Error:', sys.exc_info()[1])
       return MessageContainer("No favorites", "You have not saved any favorite TV shows to search.  Add some favorites and then try again.")
@@ -622,30 +621,6 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
   nzbItems = Dict[nzbItemsDict]
   allTitles = []
 
-  # Add any video format filters
-#   VideoFilters = app.nzb.getTVVideoFilters()
-#   log(3, funcName + "Retrieved Video Filters: " + VideoFilters)
-#   log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
-#   if len(VideoFilters)>=1:
-#     #This didn't work the way I wanted
-#     #if invertVideoQuality:
-#     #  log(4, funcName + "Inverting Video Filters")
-#     #  queryString += " -(" + VideoFilters + ")"
-#     #else:
-#     #This would be the else statement... re-indent if you figure out the video filtering
-#     queryString += " " + VideoFilters
-#   log(4, funcName + "Added Video Filters, current queryString: " + queryString)
-#   # Add any language filters
-#   Languages = app.nzb.getTVLanguages()
-#   if len(Languages)>=1:
-#     queryString += " " + Languages
-#   #Make the queryString usable by the intertubes
-#   queryString = encodeText(queryString)
-#   log(4, funcName + "Encoded queryString: " + queryString)
-
-  # Calculate the right number of seconds
-  #period = app.nzb.calcPeriod(days)
-
   #make a meaningful title for the window
   thisTitle = "TV > "
   if page>1: thisTitle += "Page " + str(page) + " > "
@@ -667,7 +642,7 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
     dir_replace_parent = True
   
   log(7, funcName, 'Creating dir')
-  dir = MediaContainer(viewGroup='Details', title2=thisTitle, noCache=False, replaceParent=dir_replace_parent, contextMenu=cm)
+  dir = MediaContainer(viewGroup='Details', title2=thisTitle, noHistory=False, noCache=False, replaceParent=dir_replace_parent, contextMenu=cm)
   log(7, funcName, 'Getting the data')
   # Go get the data
   try:
@@ -1099,15 +1074,36 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
         item.downloadComplete = True
         item.save()
       #dir.Append(Function(DirectoryItem(Article, title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextKey=item.id, contextArgs={}), theArticleID=item.id))
+
       
       item_cm = ContextMenu(includeStandardItems=False)
       item_cm.Extend(cm)
+      cm_archive = False
+      cm_archive_delete = False
+      cm_remove = False
+      cm_archive_again = False
+      cm_archiving = False
+      
       if item.downloading==False and item.complete==False and item.downloadComplete==True and item.failing==False:
         log(1, funcName, 'fixing item with "item.downloading==False and item.complete==False and item.downloadComplete==True and item.failing==False":', item.report.title)
         item.complete = True
         item.save()
       if item.complete:
+
         if media_type_filter == None or (media_type_filter.lower() == item.report.mediaType.lower()): 
+
+          #Check the archived filter first
+          if filter != None:
+            if filter=="Archived" and hasattr(item, 'archived'):
+              if item.archived:
+                pass # basically continue
+              else:
+                # item is not archived, don't add it to the dir
+                continue
+            else:
+              # item doesn't have the archive attribute, don't add it to the dir
+              continue
+
           if item.report.subtitle:
             subtitle = item.report.subtitle
           else:
@@ -1122,42 +1118,36 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
           if not hasattr(item, 'archiving'): #if the archiving attribute doesn't exist, it's probably a good bet the archived attributed doesn't exist.
             if (item.report.mediaType == 'TV' and getConfigValue(FSConfigDict, TV_ARCHIVE_FOLDER) and FileSystem.folder_available(getConfigValue(FSConfigDict, TV_ARCHIVE_FOLDER))) or (item.report.mediaType == 'Movie' and getConfigValue(FSConfigDict, MOVIE_ARCHIVE_FOLDER) and FileSystem.folder_available(getConfigValue(FSConfigDict, MOVIE_ARCHIVE_FOLDER))):
               if Core.storage.file_exists(item.fullPathToMediaFile):
-                item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM')), itemID=item.id))
-                item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
-              item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+                cm_archive = True
+                cm_archive_delete = True
+              cm_remove = True
           else:
             if not item.archiving:
               if (item.report.mediaType == 'TV' and getConfigValue(FSConfigDict, TV_ARCHIVE_FOLDER) and FileSystem.folder_available(getConfigValue(FSConfigDict, TV_ARCHIVE_FOLDER))) or (item.report.mediaType == 'Movie' and getConfigValue(FSConfigDict, MOVIE_ARCHIVE_FOLDER) and FileSystem.folder_available(getConfigValue(FSConfigDict, MOVIE_ARCHIVE_FOLDER))):
                 if not hasattr(item, 'archived'):
                   if Core.storage.file_exists(item.fullPathToMediaFile):
-                    item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM')), itemID=item.id))
-                    item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
-                  #item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+                    cm_archive = True
+                    cm_archive_delete = True
                 else:
                   if item.archived:
                     if Core.storage.file_exists(item.fullPathToMediaFile):
-                      item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM_AGAIN')), itemID=item.id))
-                      item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
-                    #item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+                      cm_archive_again = True
+                      cm_archive_delete = True
                   else:
                     if Core.storage.file_exists(item.fullPathToMediaFile):
-                      item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM')), itemID=item.id))
-                      item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
-                    #item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
-                item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+                      cm_archive = True
+                      cm_archive_delete = True
+                cm_remove = True
             else:
-              item_cm.Append(Function(DirectoryItem(StupidUselessFunction, title=L('ARCHIVING')), key='a'))
+              cm_archiving = True
           
-          if filter != None:
-            if filter=="Archived" and hasattr(item, 'archived'):
-              if item.archived:
-                pass # basically continue
-              else:
-                # item is not archived, don't add it to the dir
-                continue
-            else:
-              # item doesn't have the archive attribute, don't add it to the dir
-              continue
+          # Add all the context menu items
+          if cm_archive: item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM')), itemID=item.id))
+          if cm_archive_again: item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_ITEM_AGAIN')), itemID=item.id))
+          if cm_archive_delete: item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
+          if cm_remove: item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
+          if cm_archiving: item_cm.Append(Function(DirectoryItem(StupidUselessFunction, title=L('ARCHIVING')), key='a'))
+          item_cm.Append(Function(DirectoryItem(SearchSubtitles, title='Download Subtitles (eng)'), itemID=item.id, file=item.fullPathToMediaFile, size=item.files[item.mediaFileName]))
 
           if Core.storage.file_exists(item.fullPathToMediaFile):
             dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=item.report.title, thumb=R('play_green.png'), subtitle=subtitle, summary=item.report.attributes_and_summary, contextMenu=item_cm, contextKey=item.id, air_release_date=get_metadata_date(item), contextArgs={}))
@@ -1467,11 +1457,12 @@ def Search(sender, query, category):
   SearchList.append(query)
   usableQuery = app.nzb.concatSearchList(SearchList)
   usableQuery = query
+  #log(7, funcName, 'query:', query, 'category:', category)
 
-  if category == "6": #movies
+  if category == app.nzb.CAT_MOVIES: #movies
     dir = SearchMovies(sender, value=usableQuery, title2=query, days=TVSearchDays_Default, maxResults=str(app.nzb.RESULTS_PER_PAGE), offerExpanded=False)
 
-  elif category == "8": #tv
+  elif category == app.nzb.CAT_TV: #tv
     dir = SearchTV(sender, value=usableQuery, title2=query, days=MovieSearchDays_Default, maxResults=str(app.nzb.RESULTS_PER_PAGE), offerExpanded=False)
     
   return dir
@@ -1659,6 +1650,26 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
 ####################################################################################################
 # General use functions
 ####################################################################################################
+import subtitles
+@route(routeBase + "SearchSubtitles/itemID={itemID}/file={file}/size={size}")
+def SearchSubtitles(sender=None, key=None, itemID=None, file=None, size=0):
+  funcName = "SearchSubtitles"
+  log(7, funcName, 'itemID:', itemID, 'file:', file, 'size:', size)
+  item = app.queue.getItem(itemID)
+  if itemID == None or not item:
+    return MessageContainer('No item', 'No item selected, cannot search for subtitles.')
+  if (file == None) or (size == 0):
+    if not file: file = item.fullPathToMediaFile
+    if not size: size = item.files[item.mediaFileName]
+    if not file or not size:
+      return MessageContainer('Error', 'Error getting the media file or its size')
+  subs = subtitles.Subtitles(file_path=file, filesize=size)
+  all_subs = subs.SearchByOSHashAndFileSize()
+  if len(all_subs) < 1:
+    return MessageContainer("No subtitles found", "No subtitles are available for this item (yet?).")
+  else:
+    downloadedSubs = subs.DownloadSub(save_location=item.completed_path)
+    return MessageContainer("Subtitles Downloaded", "Downloaded "+ str(len(downloadedSubs)) + " subtitles")
 
 def checkForDupes(allEntries):
   funcName = "[checkForDupes]"

@@ -4,7 +4,7 @@ class Updater(object):
   def __init__(self):
     self.versionCheckURL = "http://www.newzworthy.info/updater/versioncheck.php"
     self.bundleName = "Newzworthy.bundle"
-    self.version  = 0.82
+    self.version  = 0.83
     self.lastCheckTime = None
     self.lastData = None
     self.serverDataTimeout = 180

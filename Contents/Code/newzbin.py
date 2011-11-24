@@ -1,4 +1,5 @@
 from common import *
+import sys
 
 name = 'Newzbin'
 SEARCH_URL  = "http://www.newzbin.com/search?fpn=p"
@@ -91,7 +92,8 @@ def search(category, query_list, period, page=0):
   allResults = []
   try:
     allResults = XML.ElementFromURL(url, cacheTime=0).xpath('//item')
-  except HTTPError:
+  except:
+    log(1, funcName, 'Error searching:', sys.exc_info()[1])
     return False
 
   allEntries = []
