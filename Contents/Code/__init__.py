@@ -699,7 +699,7 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
                   if thisArticle.title != oldTitle:
                     thisArticle.description = "Original Title: " + oldTitle + "\n\n" + thisArticle.description
                   thisArticle.subtitle = "S" + tv_metadata.season + "E" + tv_metadata.episode + " (" + tv_metadata.air_date + ")"
-                  if Client.Platform != "MacOSX":
+                  if not Client.Platform in ["MacOSX", "Windows"]:
                     thisArticle.description = thisArticle.subtitle + "\n\n" + thisArticle.description
                   thisArticle.rating = tv_metadata.votes
                   if tv_metadata.thumb:
@@ -754,7 +754,6 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
     dir.Append(Function(DirectoryItem(SearchTV, "More than " + str(resultsSoFar) + " matches, Next Page"), value=value, title2=title2, maxResults=str(app.nzb.RESULTS_PER_PAGE), days=str(days), offerExpanded=offerExpanded, expandedSearch=expandedSearch, page=page, invertVideoQuality=invertVideoQuality, sort_by=sort_by))
   else:
     log(4, funcName, "Only", len(dir)+dupesFound, "entries found")
-
 
   if offerExpanded:
     dir.Append(Function(DirectoryItem(SearchTV, "[Expand this search...]"), value=value, title2="[expanded] " + title2,  maxResults=str(int(maxResults)*ExpandedSearchMaxResultsFactor), days=str(int(days)*ExpandedSearchTimeFactor), offerExpanded=True, expandedSearch=True, page=page, invertVideoQuality=invertVideoQuality))
@@ -1611,7 +1610,11 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
             thisArticle = nzbItems[thisArticle.nzbID]
             #Log("Pulled article from cache.")
 
-          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=thisArticle.metadata['date'].strftime('%x'), summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size, contextMenu=media_context_menu(itemID=thisArticle.nzbID, existingMenu=cm), air_release_date=get_metadata_date(thisArticle), contextKey=thisArticle.nzbID, contextArgs={}))
+          try:
+            subtitle = thisArticle.metadata['date'].strftime('%x')
+          except:
+            subtitle = ''
+          dir.Append(DirectoryItem(Route(Article, theArticleID=thisArticle.nzbID), title=thisArticle.title, subtitle=subtitle, summary=thisArticle.attributes_and_summary, duration=thisArticle.duration, thumb=thisArticle.thumb, infoLabel=thisArticle.size, contextMenu=media_context_menu(itemID=thisArticle.nzbID, existingMenu=cm), air_release_date=get_metadata_date(thisArticle), contextKey=thisArticle.nzbID, contextArgs={}))
     
     #if saveDict:
       #Dict[nzbItemsDict] = nzbItems
