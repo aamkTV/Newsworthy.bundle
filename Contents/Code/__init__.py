@@ -1643,19 +1643,19 @@ def SearchSubtitles(sender=None, key=None, itemID=None, file=None, size=0):
   log(7, funcName, 'itemID:', itemID, 'file:', file, 'size:', size)
   item = app.queue.getItem(itemID)
   if itemID == None or not item:
-    return MessageContainer('No item', 'No item selected, cannot search for subtitles.')
+    return ObjectContainer(header='No item', message='No item selected, cannot search for subtitles.')
   if (file == None) or (size == 0):
     if not file: file = item.fullPathToMediaFile
     if not size: size = item.files[item.mediaFileName]
     if not file or not size:
-      return MessageContainer('Error', 'Error getting the media file or its size')
+      return ObjectContainer(header='Error', message='Error getting the media file or its size')
   subs = subtitles.Subtitles(file_path=file, filesize=size)
   all_subs = subs.SearchByOSHashAndFileSize()
   if len(all_subs) < 1:
-    return MessageContainer("No subtitles found", "No subtitles are available for this item (yet?).")
+    return ObjectContainer(header="No subtitles found", message="No subtitles are available for this item (yet?).")
   else:
     downloadedSubs = subs.DownloadSub(save_location=item.completed_path)
-    return MessageContainer("Subtitles Downloaded", "Downloaded "+ str(len(downloadedSubs)) + " subtitles")
+    return ObjectContainer(header="Subtitles Downloaded", message="Downloaded "+ str(len(downloadedSubs)) + " subtitles")
 
 def checkForDupes(allEntries):
   funcName = "[checkForDupes]"
