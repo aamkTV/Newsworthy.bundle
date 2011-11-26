@@ -135,20 +135,9 @@ def setNZBService(retType='bool'): #valid return types: bool and object
 ####################################################################################################
 def ValidatePrefs():
   funcName = "[ValidatePrefs] "
-  #log(2, funcName + "Restarting Newzworthy Plugin")
-  #global loglevel
-  #loglevel = int(Prefs['NWLogLevel'])
   global app
-  #global loggedInNZBService
   app.loggedInNZBService = False
-  #This proves the prefs aren't set when this runs
-  #log(1, funcName, 'NZBService:', Prefs['NZBService'])
-  #try:
-  #  app.nntpManager.disconnect_all()
-  #except:
-  #  pass
-  #time.sleep(10)
-  #RestartNW()
+
 
 ####################################################################################################
 @route(routeBase + 'SaveDict')
@@ -168,7 +157,7 @@ def RestartNW():
   plist = Core.storage.join_path(cdir, 'Info.plist')
   plistData = Core.storage.load(plist)
   Core.storage.save(plist, plistData)
-  return MessageContainer("Restarted", "Newzworthy is restarting")
+  return Message("Restarted", "Newzworthy is restarting.\nRestart can take up to 30 seconds.")
   
 ####################################################################################################
 @route(routeBase + 'webMainMenu')
@@ -326,8 +315,7 @@ def Update():
     RestartNW()
   else:
     message = "No Updates Available"
-  #return MessageContainer("Updater", message)
-  return ObjectContainer(header="Updater", message=message)
+  return Message(title="Updater", message=message)
 
 @route(routeBase + 'Show_Updates')
 def Show_Updates():
@@ -355,12 +343,12 @@ def clearArticleDict(sender):
   Dict[nzbItemsDict] = {}
   Dict['nzbItemsDict'] = {}
   log(1, funcName, 'articleDict after clearing:', Dict[nzbItemsDict])
-  return MessageContainer("Cache Cleared", "All cached items have been cleared.")
+  return Message("Cache Cleared", "All cached items have been cleared.")
 
 @route(routeBase + 'clearHTTPCache')
 def clearHTTPCache():
   HTTP.ClearCache()
-  return MessageContainer("HTTP Cache Cleared", "All HTTP Cache Cleared")
+  return Message("HTTP Cache Cleared", "All HTTP Cache Cleared")
 
 @route(routeBase + 'loadItemsFromDisk')
 def loadItemsFromDisk():
@@ -393,7 +381,7 @@ def loadItemsFromDisk():
         log(5, funcName, 'Unloadable item')
     except:
       log(5, funcName, di, 'is not an item.  Error:', sys.exc_info()[1])
-  return MessageContainer("Done", "Loaded " + str(items_loaded) + " items from disk.")
+  return Message("Done", "Loaded " + str(items_loaded) + " items from disk.")
 
 @route(routeBase + 'reloadAllMetaData')
 def reloadAllMetaData():
@@ -407,7 +395,7 @@ def clearAllQueues():
   app.queue.resetItemQueue()
   RestartNW()
   app.downloader.resetArticleQueue()
-  return MessageContainer("Queues Cleared", "All queues have been cleared.")
+  return Message("Queues Cleared", "All queues have been cleared.")
   
 def deleteAllDownloads(sender):
   funcName = "[deleteAllDownloads]"
@@ -417,7 +405,7 @@ def deleteAllDownloads(sender):
       Core.storage.remove_tree(Core.storage.join_path(media_path, dir_obj))
     except:
       log(3, funcName, 'Could not delete', dir_obj)
-  return MessageContainer("Files Deleted", "All downloaded files have been deleted.")
+  return Message("Files Deleted", "All downloaded files have been deleted.")
 ####################################################################################################
 def showAllDicts(sender):
   funcName = "[showAllDicts]"
@@ -596,9 +584,9 @@ def BrowseTVFavorites(sender, days=TVSearchDays_Default, sort_by=None):
       return SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
     except:
       log(1, funcName, 'Error:', sys.exc_info()[1])
-      return MessageContainer("No favorites", "You have not saved any favorite TV shows to search.  Add some favorites and then try again.")
+      return Message("No favorites", "You have not saved any favorite TV shows to search.\nAdd some favorites and then try again.")
   else:
-    return MessageContainer("No favorites", "You have not saved any favorite TV shows to search.  Add some favorites and then try again.")
+    return Message("No favorites", "You have not saved any favorite TV shows to search.\nAdd some favorites and then try again.")
 
 ####################################################################################################
 def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0), offerExpanded=False, expandedSearch=False, page=1, invertVideoQuality=False, allOneTitle=False, sort_by=None, key=None):
@@ -650,9 +638,9 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
     allEntries = app.nzb.search(category=app.nzb.CAT_TV, query_list=value, period=app.nzb.calcPeriod(days), page=page)
   except:
     log(1, funcName, 'Error searching:', sys.exc_info()[1])
-    return MessageContainer('Error searching', "There was an error trying to search.  Please try again later or check your username, password, and membership status.")
+    return Message('Error searching', "There was an error trying to search.\nPlease try again later or check your\nusername, password, and membership status.")
   if not len(allEntries)>=1:
-    return MessageContainer(header="No Matching Results", message="Your search did not yield any matches")
+    return Message(header="No Matching Results", message="Your search did not yield any matches")
 
   saveDict = True
 
@@ -778,7 +766,7 @@ def Article(theArticleID='', theArticle='nothing', title2='', dirname='', subtit
       if x:
         theArticle = x.report
       else:
-        return MessageContainer("No Article", "No Article Found")
+        return Message("No Article", "No Article Found")
     
   
   #Determine what you want to show as the secondary window title
@@ -1016,8 +1004,8 @@ def AddReportToQueue(nzbID, article='nothing'):
   #item.download()
   #log(5, funcName, 'Items queued:', len(app.queue.items))
   header = 'Item queued'
-  message = '"%s" has been added to your queue' % article.title #item.report.title
-  return MessageContainer(header, message)
+  message = '"%s"\nhas been added to your queue' % article.title #item.report.title
+  return Message(header, message)
 
 ####################################################################################################
 @route(routeBase + 'manageCompleteQueue')
@@ -1169,20 +1157,12 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
 def archiveItem(sender=None, key=None, itemID=None, delete=False):
   funcName = '[archiveItem]'
   if not itemID:
-    return MessageContainer('Error', 'No item to archive')
+    return Message('Error', 'No item to archive')
   
   item = app.queue.getItem(itemID)
   if not item:
-    return MessageContainer('Error', 'Could not retrieve item')
+    return Message('Error', 'Could not retrieve item')
     
-#   FS_archive_type = ''
-#   if item.report.mediaType == 'TV': FS_archive_type = TV_ARCHIVE_FOLDER
-#   if item.report.mediaType == 'Movie': FS_archive_type = MOVIE_ARCHIVE_FOLDER
-#   
-#   if not FS_archive_type:
-#     return MessageContainer('Error', 'Could not determine item media type (e.g. TV or Movie)')
-#   
-#   FS_archive_folder = getConfigValue(FSConfigDict, FS_archive_type)
   Thread.Create(item.archive, item, delete=delete)
 
 ####################################################################################################
@@ -1360,7 +1340,7 @@ def StartStreamAction(id):
   item = app.queue.getItem(id)
   log(6, funcName, "Got id:", item.id)
 
-  if not item: return MessageContainer("No Item", "Did not find item")
+  if not item: return Message("No Item", "Did not find item")
   if item.play_ready or item.complete:
     return Redirect(item.stream)
 
@@ -1423,9 +1403,9 @@ def RemoveItemAction(id):
   if folderDeleted:
     app.queue.items.remove(id)
   else:
-    return MessageContainer("Error", "Item not deleted: " + str(item))
+    return Message("Error", "Item not deleted: " + str(item))
   
-  #return MessageContainer("Successfully Deleted", "The item was successfully deleted.")
+  #return Message("Successfully Deleted", "The item was successfully deleted.")
 #  return True
 
 @route(routeBase + 'item_contextual_options/{id}')
@@ -1564,7 +1544,7 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
   # Go get the data
   allEntries = app.nzb.search(category=app.nzb.CAT_MOVIES, query_list=value, period=app.nzb.calcPeriod(days), page=page)
   if not len(allEntries)>=1:
-    return MessageContainer(header="No Matching Results", message="Your search did not yield any matches")
+    return Message(title="No Matching Results", message="Your search did not yield any matches")
 
   # See if there are dupes, if we are interested in consolidating them
   if consolidateDuplicates:

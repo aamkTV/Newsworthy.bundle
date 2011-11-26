@@ -419,7 +419,7 @@ class NZBService(object):
 @route(routeBase + "Message")
 def Message(title, message, sender=None):
   funcName = '[Message]'
-  return MessageContainer(title, message)
+  return ObjectContainer(header=title, message=message)
   
 def log_level_watcher():
   Log.Info('log_level_watcher started')

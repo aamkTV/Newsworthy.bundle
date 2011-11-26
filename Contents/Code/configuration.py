@@ -212,8 +212,8 @@ def save_server_setting(sender=None, server_id=None, key=None, query=None):
 				return True
 			except:
 				errmsg = sys.exc_info()[1]
-				return MessageContainer("Failed to save", "Error when trying to save your value: " + str(errmsg))
-		if not server: return MessageContainer("Failed to save", "Could not find server to save.")
+				return Message(title="Failed to save", message="Error when trying to save your value:\n" + str(errmsg))
+		if not server: return Message(title="Failed to save", message="Could not find server to save.")
 
 @route(routeBase + 'save_max_connections_setting/{query}')
 def save_max_connections_setting(sender=None, query=None, resetDownloads=True):
@@ -231,14 +231,14 @@ def save_max_connections_setting(sender=None, query=None, resetDownloads=True):
 		log(3, funcName, 'Unable to count total connections')
 	
 	if int(query) > total_connections:
-		return MessageContainer("Too many connections", "You are attempting to use more connections than are available based on your server configurations.  You have " + str(total_connections) + " configured.")
+		return Message(title="Too many connections", message="You are attempting to use more connections\nthan are available based on your server configurations.\nYou have " + str(total_connections) + " connections configured.")
 	
 	elif int(query) == total_connections and total_connections != 0:
 		conn_used = int(int(query)-1)
 		setDictField(theDict=nntpSettingDict, key='TotalConnections', query=conn_used, sender=None)
 		app.num_client_threads = conn_used
 		if resetDownloads: resetDownloader()
-		return MessageContainer("Saved with changes", "Set the total number to " + str(conn_used) + " to allow for connection testing.")
+		return Message(title="Saved changes", message="Set the total number to " + str(conn_used) + "\nto allow for connection testing.")
 	
 	else:
 		conn_used = int(query)
@@ -246,7 +246,7 @@ def save_max_connections_setting(sender=None, query=None, resetDownloads=True):
 		app.num_client_threads = conn_used
 		if resetDownloads: resetDownloader()
 		if conn_used == 0:
-			return MessageContainer("Warning", "0 connections will be used; nothing will download.")
+			return Message(title="Warning", message="0 connections will be used; nothing will download.")
 
 @route(routeBase + 'manageNNTPs')
 def manageNNTPs():
@@ -331,15 +331,15 @@ def configureNNTP(id=0):
 @route(routeBase + 'testNNTP/{id}')
 def testNNTP(id):
 	if not app:
-		return MessageContainer("No app", "No application to use")
+		return Message(title="No app", message="No application to use")
 	server = app.nntpManager.get_server_by_id(id)
 	if not server:
-		return MessageContainer("Server Error", "Error when testing.  This may not be related to your configuration.")
+		return Message(title="Server Error", message="Error when testing.\nThis may not be related to your configuration.")
 	result = server.test_connection()
 	if result:
-		return MessageContainer("Successfully connected", "The connection was successful")
+		return Message(title="Successfully connected", message="The connection was successful")
 	else:
-		return MessageContainer("Dismal failure", "The connection failed")
+		return Message(title="Dismal failure", message="The connection failed")
 ######################################################################################
 @route(routeBase + 'deleteNNTPUI/{id}')
 def deleteNNTPUI(id):
@@ -355,7 +355,7 @@ def deleteNNTP(id):
 	Dict[nntpConfigDict] = nntpDict
 	Dict.Save()
 	log(5, funcName, 'Server deleted:', id)
-	return MessageContainer("Success", "Server successfully deleted.")
+	return Message("Success", "Server successfully deleted.")
 	
 @route(routeBase + 'configure')
 def configure(sender):
@@ -456,9 +456,9 @@ def selectFolder(key=None, selectType=None, sender=None):
   # The key is the full path to the folder
   # Three types of folders: Download, TV Archive, Movie Archive
   if not key:
-    return MessageContainer("Error", "No folder chosen")
+    return Message("Error", "No folder chosen")
   if not type:
-    return MessageContainer("Error", "Please choose what you want to do with this folder")
+    return Message("Error", "Please choose what you want to do with this folder")
   
   testing = False
   if testing:
@@ -468,7 +468,7 @@ def selectFolder(key=None, selectType=None, sender=None):
   setDictField(sender=None, query=str(key), theDict=FSConfigDict, key=selectType)
   log(9, funcName, Dict[FSConfigDict])
 
-  return MessageContainer("Saved", "Set folder " + str(getConfigValue(FSConfigDict, str(selectType))) + " as the " + str(selectType))
+  return Message("Saved", "Set folder\n" + str(getConfigValue(FSConfigDict, str(selectType))) + "\nas the " + str(selectType))
 ############################################################################
 def configIsValid():
 	funcName = "[configuration.configIsValid]"
