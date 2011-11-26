@@ -326,7 +326,8 @@ def Update():
     RestartNW()
   else:
     message = "No Updates Available"
-  return MessageContainer("Updater", message)
+  #return MessageContainer("Updater", message)
+  return ObjectContainer(header="Updater", message=message)
 
 @route(routeBase + 'Show_Updates')
 def Show_Updates():
@@ -1064,6 +1065,7 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
     if filter == 'Archived': noun = 'Archived'
     
   dir = MediaContainer(viewGroup="Details", title2=(noun + " Items"), replaceParent=dir_replace_parent, noCache=True, autoRefresh=30, contextMenu=cm)
+  #dir = ObjectContainer(view_group="Details", title2=(noun + " Items"), no_cache=True, replace_parent=dir_replace_parent)#, auto_refresh=30, context_menu=cm)
   
   if len(app.queue.completedItems) > 0:
     for item in app.queue.completedItems:
@@ -1151,13 +1153,14 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
 
           if Core.storage.file_exists(item.fullPathToMediaFile):
             dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=item.report.title, thumb=R('play_green.png'), subtitle=subtitle, summary=item.report.attributes_and_summary, contextMenu=item_cm, contextKey=item.id, air_release_date=get_metadata_date(item), contextArgs={}))
+            #dir.add(MediaObject(parts=[PartObject(StartStreamAction(id=item.id))], 
           else:
             dir.Append(DirectoryItem(Route(Message, title="File Error", message="Media File Not Found"), title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextMenu=item_cm, contextKey=item.id, contextArgs={}))
       else:
         log(1, funcName, 'Adding incomplete item:', item.report.title)
         dir.Append(DirectoryItem(Route(Article, theArticleID=item.id), title=item.report.title, subtitle=item.report.subtitle, summary=item.report.attributes_and_summary, contextKey=item.id, contextArgs={}))
   if len(dir) == 0:
-    dir.Append(DirectoryItem(Route(StupidUselessFunction, key='a'), title=("No " + noun + " Downloads"), subtitle=("There are no " + noun.lower() + " items to display"), summary="", contextKey='a', contextArgs={}))   
+    dir.add(DirectoryItem(Route(StupidUselessFunction, key='a'), title=("No " + noun + " Downloads"), subtitle=("There are no " + noun.lower() + " items to display"), summary="", contextKey='a', contextArgs={}))   
   if sort_by == 'NAME': dir.Sort('title')
   if sort_by == 'DATE': dir.Sort('air_release_date', descending=True)
 
@@ -1535,26 +1538,6 @@ def SearchMovies(sender, value, title2, maxResults=str(0), days=MovieSearchDays_
   #NZB Search functions accept lists
   if isinstance(value, str):
     value = [value]
-
-  # I know we are looking for movies
-  #category = app.nzb.CAT_MOVIES
-
-
-  # Add any video format filters
-#   VideoFilters = app.nzb.getMovieVideoFilters()
-#   log(3, funcName + "Retrived Video Filters: " + VideoFilters)
-#   log(4, funcName + "About to add Video Filters, current queryString: " + queryString)
-#   if len(VideoFilters)>=1: queryString += " " + VideoFilters
-#   log(4, funcName + "Added Video Filters, current queryString: " + queryString)
-#   # Add any language filters
-#   Languages = app.nzb.getMovieLanguages()
-#   if len(Languages)>=1: queryString += " " + Languages
-#   #Make the queryString usable by the intertubes
-#   queryString = encodeText(queryString)
-#   log(4, funcName + "Encoded queryString: " + queryString)
-
-  # Calculate the right number of seconds
-#  period = app.nzb.calcPeriod(days)
 
   #make a meaningful title for the window
   thisTitle = "Movies > "
