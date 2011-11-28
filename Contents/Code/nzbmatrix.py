@@ -122,10 +122,11 @@ def search(category, query_list, period, page):
 
   if page>1:
     log(4, funcName, 'page:', page)
-    url += "&offset=" + str(((page-1)*RESULTS_PER_PAGE))
+    offset = "&offset=" + str(((page-1)*RESULTS_PER_PAGE))
   else:
     log(4, funcName, 'page is <1:', page)
-
+    offset = ''
+    
   # Add any video format filters
   if category == CAT_TV:
     VideoFilters = getTVVideoFilters()
@@ -136,7 +137,7 @@ def search(category, query_list, period, page):
   if len(VideoFilters)>0: query_values += " " + VideoFilters
   if len(LanguageFilters)>0: query_values += LanguageFilters
 
-  url = SEARCH_URL + "search=" + String.Quote(query_values,usePlus=False) + "&cat=" + category + "&maxage=" + period + "&sort=" + sortFilter + "&searchin=name"#&gibberish=" + str(time.time())
+  url = SEARCH_URL + "search=" + String.Quote(query_values,usePlus=False) + "&cat=" + category + "&maxage=" + period + "&sort=" + sortFilter + "&searchin=name" + offset#&gibberish=" + str(time.time())
 
   log(3, funcName + "URL: " + url)
   #testresp = HTTP.Request(url)
