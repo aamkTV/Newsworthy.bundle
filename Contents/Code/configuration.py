@@ -356,7 +356,42 @@ def deleteNNTP(id):
 	Dict.Save()
 	log(5, funcName, 'Server deleted:', id)
 	return Message("Success", "Server successfully deleted.")
+
+######################################################################################	
+@route(routeBase + 'manageNZBSites')
+def manageNZBSites(sender=None):
+	funcName = "[configuration.manageNZBSites]"
+
+	cm = ContextMenu(includeStandardItems=False)
+	cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
+	dir = MediaContainer(contextMenu=cm, viewGroup='Lists', replaceParent=False, noHistory=False, noCache=True, thumb=R('configuration.png'))
 	
+	###########################
+	# NZB CONFIGURATION SECTION
+	# Present the user with the options to configure their nzb service info
+	
+	###########################
+	# NZBMatrix Configs
+	if Prefs['NZBService'] == 'NZBMatrix' or True:
+		dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Username: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')), prompt=("Set NZBMatrix Username"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixUsername'))
+		if len(getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword'))>=1:
+			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: ******"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
+		else:
+			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: <Not Set>"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
+		dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix API Key: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')), prompt=L("Set NZBMatrix API Key"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixAPIKey'))			
+	
+	##########################
+	# Newzbin Configs
+	if Prefs['NZBService'] == 'Newzbin' or True:
+		dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Username: " + getConfigValue(theDict=nzbConfigDict, key='newzbinUsername')), prompt=("Set Newzbin Username"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinUsername'))
+		if len(getConfigValue(theDict=nzbConfigDict, key='newzbinPassword'))>=1:
+			dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Password: ******"), prompt=("Set Newzbin Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinPassword'))
+		else:
+			dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Password: <Not Set>"), prompt=("Set Newzbin Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinPassword'))
+	
+	return dir
+
+######################################################################################
 @route(routeBase + 'configure')
 def configure(sender):
 	funcName = "[configuration.configure]"
@@ -376,38 +411,14 @@ def configure(sender):
 		Dict[FSConfigDict] = {}
 	FSConfig = Dict[FSConfigDict]
 	
-#	nntp = nntpServer()
-	
 	cm = ContextMenu(includeStandardItems=False)
 	cm.Append(Function(DirectoryItem(StupidUselessFunction, title="N/A")))
 	dir = MediaContainer(contextMenu=cm, viewGroup='Lists', replaceParent=False, noHistory=False, noCache=True, thumb=R('configuration.png'))
-	
-	###########################
-	# NZB CONFIGURATION SECTION
-	# Present the user with the options to configure their nzb service info
-	
-	###########################
-	# NZBMatrix Configs
-	if Prefs['NZBService'] == 'NZBMatrix' or True:
-		dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Username: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')), prompt=("Set NZBMatrix Username"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixUsername'))
-		if len(getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword'))>=1:
-			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: ******"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
-		else:
-			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: <Not Set>"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
-		########################
-		# I haven't found a use for the nzbmatrix api key in this app.
-		# You can always enable this input if you see need for it.
-		########################
-		#dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix API Key: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')), prompt=L("Set NZBMatrix API Key"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixAPIKey'))			
-	
-	##########################
-	# Newzbin Configs
-	if Prefs['NZBService'] == 'Newzbin' or True:
-		dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Username: " + getConfigValue(theDict=nzbConfigDict, key='newzbinUsername')), prompt=("Set Newzbin Username"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinUsername'))
-		if len(getConfigValue(theDict=nzbConfigDict, key='newzbinPassword'))>=1:
-			dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Password: ******"), prompt=("Set Newzbin Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinPassword'))
-		else:
-			dir.Append(Function(InputDirectoryItem(setDictField, title=("Newzbin Password: <Not Set>"), prompt=("Set Newzbin Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='newzbinPassword'))
+
+	##########################################
+	# NZB Index Sites CONFIGURATION SECTION
+	# Present the user with the options to configure their nzb sites
+	dir.Append(DirectoryItem(Route(manageNZBSites), title=L("Manage NZB Index Sites"), thumb=R('configuration.png'), contextArgs={}, contextKey='a'))
 			
 	##########################################
 	# NNTP (News Server) CONFIGURATION SECTION
@@ -474,6 +485,7 @@ def configIsValid():
 	funcName = "[configuration.configIsValid]"
 
 ############################################################################
+@route(routeBase + 'setDictField/{sender}/{query}/{theDict}/{key}')
 def setDictField(sender, query, theDict, key):
 	funcName = "[configuration.setDictField]"
 	log(4, funcName, 'saving', key, 'as', query, 'in', theDict)

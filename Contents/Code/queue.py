@@ -375,13 +375,16 @@ class MediaItem(object):
     fullPath = False
     #log(8, funcName, self.files)
     possibleFile = []
-    for name in self.files:
-      index = name.rfind('.')
-      if index > 0:
-        ext = name[index+1:]
-        if ext in media_extensions:
-          possibleFile.append(name)
-    
+    try:
+      for name in self.files:
+        index = name.rfind('.')
+        if index > 0:
+          ext = name[index+1:]
+          if ext in media_extensions:
+            possibleFile.append(name)
+    except:
+      log(1, funcName, 'Unable to find media file:', sys.exc_info()[1])
+      
     # Check to see if we have more than one media file.
     # If we have more than one, filter out the sample files.
     if len(possibleFile) > 1:
@@ -425,16 +428,20 @@ class MediaItem(object):
   def mediaFileName(self):
     funcName = '[Queue.MediaItem.mediaFileName]'
     MFName = False
-    for name in self.files:
-      index = name.rfind('.')
-      if index > -1:
-        ext = name[index+1:]
-        if ext in media_extensions:
-          log(7, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
-          MFName = name
-          break
-    else:
-      log(5, funcName, 'Could not find a media file')
+    try:
+      for name in self.files:
+        index = name.rfind('.')
+        if index > -1:
+          ext = name[index+1:]
+          if ext in media_extensions:
+            log(7, funcName, 'Found this file, returning full path:', Core.storage.join_path(self.completed_path, name))
+            MFName = name
+            break
+      else:
+        log(5, funcName, 'Could not find a media file')
+    except:
+      log(1, funcName, 'Error finding mediaFileName:', sys.exc_info()[1])
+      return ''
     return MFName
   
   @property

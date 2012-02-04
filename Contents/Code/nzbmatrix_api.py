@@ -3,9 +3,7 @@ import sys
 from common import *
 
 name = 'NZBMatrix'
-SEARCH_URL = 'http://nzbmatrix.com/nzb-search.php?'
-LOGIN_URL = 'http://nzbmatrix.com/account-login.php'
-COOKIE_URL = 'http://nzbmatrix.com'
+SEARCH_URL = 'https://api.nzbmatrix.com/v1.1/search.php?'
 #NZBM_ROOT = 'http://nzbmatrix.com/nzb.php?category=Movies&sort=1&type=asc&page=0'
 #NZBM_BASE = 'http://nzbmatrix.com'
 #NZBM_ERRORS = {'error:invalid_login':'There is a problem with the username you have provided.', 'error:invalid_api':'There is a problem with the API Key you have provided.', 'error:invalid_nzbid':'There is a problem with the NZBid supplied.', 'error:please_wait_':'Please wait before retry.', 'error:vip_only':'You need to be VIP or higher to access.', 'error:disabled_account':'User Account Disabled.', 'error:no_nzb_found':'No NZB found.'}
@@ -19,65 +17,47 @@ CAT_TV = "tv-all"
 CAT_MOVIES = "movies-all"
 HTTP_TIMEOUT = 60
 
-max_query_length = 50
-
 MOVIE_BROWSING = True
 TV_BROWSING = True
 TV_SEARCH = True
 MOVIE_SEARCH = True
 
 LoggedIn = False
-cookie = None
 
 ####################################################################################################
 def performLogin(nzbService, forceRetry=False):
   funcName = '[nzbmatrix.performLogin]'
 
-  if nzbService.nzbmatrixUsername != "": # and nzbService.nzbmatrixPassword != "":
+  url = 'http://api.nzbmatrix.com/v1.1/account.php?username=%s&apikey=%s'
+  if nzbService.nzbmatrixUsername != "" and nzbService.nzbmatrixAPIKey != "": # and nzbService.nzbmatrixPassword != "":
     USERNAME = nzbService.nzbmatrixUsername
-    PASSWORD = nzbService.nzbmatrixPassword
-    values = {'username': USERNAME, 'password': PASSWORD}
-    log(8,funcName,'nzbmatrix login credentials:', values)
+    APIKEY = nzbServiceInfo.nzbmatrixAPIKey
+    url = url %(USERNAME, APIKEY)
+    log(9, funcName, 'url:', url)
 
     if forceRetry:
       log(3, funcName, 'Forcing the login retry, clearing the cache')
       HTTP.ClearCache()
 
     try:
-      #HTTP.RandomizeUserAgent()
-      rsp = HTTP.Request(url=LOGIN_URL, values=values, immediate=True, timeout=HTTP_TIMEOUT)
+      #HTTP.Headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; en-us) AppleWebKit/533.21.1 (KHTML, like Gecko) Version/5.0.5 Safari/533.21.1'
+      rsp = HTTP.Request(url=url, immediate=True, timeout=HTTP_TIMEOUT)
       log(5, funcName, 'nzbmatrix login response received')
-      headers = rsp.headers
-      log(9, funcName, 'response headers:', headers)
-      log(9, funcName, 'cookies:', HTTP.CookiesForURL(COOKIE_URL))
+      response = rsp.content
+      log(9, funcName, 'response string:', response)
       try:
-        global cookie
-        cookie = HTTP.CookiesForURL('http://nzbmatrix.com')
+        if response.index("USERNAME") != -1:
+          return True
+        else:
+          return False
       except:
-        log(4, funcName, 'No cookies found, not logged in')
-        return False
-      
-      cookie_tokens = cookie.split(";")
-      log(4, funcName, 'cookie tokens:', cookie_tokens)
-      tokens = {}
-      for tok in cookie_tokens:
-        name = tok.split("=")[0].strip()
-        value = tok.split("=")[1].strip()
-        tokens[name] = value
-      
-      log (4, funcName, 'cookie name value pairs:', tokens)
-      if tokens['uid'] != 'null':
-        return True
-      else:
-        return False
-      
+        log(4, funcName, 'Error checking for successful login:', sys.exc_info()[1])
+        return False      
     except Ex.URLError, e:
       log(4,funcName, "URL Error:", e.reason)
       return False
-    except:
-      log(1, funcName, 'Error logging in:', sys.exc_info()[1])
   else:
-    log(4, funcName, 'NZBMatrix username/password not specified')
+    log(4, funcName, 'NZBMatrix username/apikey not specified')
     return False
 
 ####################################################################################################
@@ -86,52 +66,12 @@ def supportsGenres():
 
 ####################################################################################################
 def search(category, query_list, period, page):
-  funcName = '[' + name + '.search]'
+  funcName = '[nzbmatrix.search]'
   
-  #query_values = concatSearchList(query_list)
-  query_values = query_list
-
-  # Add any video format filters
-  if category == CAT_TV:
-    VideoFilters = getTVVideoFilters()
-    LanguageFilters = getTVLanguages()
-  elif category == CAT_MOVIES:
-    VideoFilters = getMovieVideoFilters()
-    LanguageFilters = getMovieLanguages()
-#  if len(VideoFilters)>0: query_values += " " + VideoFilters
-#  if len(LanguageFilters)>0: query_values += LanguageFilters
-  
-  max_query_length_with_filters = max_query_length - len(VideoFilters) - len(LanguageFilters) - 1
-  allEntries = []
-  new_list = []
-  while len(query_values) > 0:
-    current_query_length = len(concatSearchList(new_list))
-    while current_query_length < max_query_length_with_filters:
-      if len(query_values) > 0:
-        if current_query_length + len(query_values[0]) < max_query_length_with_filters:
-          new_list.append(query_values.pop())
-          log(7, funcName, 'new_list:', new_list)
-          current_query_length = len(concatSearchList(new_list))
-        else:
-          log(7, funcName, 'Maximum query length reached')
-          break
-      else:
-        log(7, funcName, 'Out of query_list items')
-        break
-    log(4, funcName, 'Complete query list:', new_list)
-    query_new_list = concatSearchList(new_list) + " " + VideoFilters
-    allEntries.extend(getResults(category=category, query_values=query_new_list, period=calcPeriod(period), page=page))
-    new_list = []
-  return allEntries
-    
-####################################################################################################
-def getResults(category, query_values, period, page):
-  funcName = '[' + name + '.getResults]'
-  
-#  if len(query_list)>0 and query_list[0]<>'':
-#    query_values = concatSearchList(query_list)
-#  else:
-#    query_values = ''
+  if len(query_list)>0 and query_list[0]<>'':
+    query_values = concatSearchList(query_list)
+  else:
+    query_values = ''
   
 
   if page>1:
@@ -143,15 +83,18 @@ def getResults(category, query_values, period, page):
     
   # Add any video format filters
   if category == CAT_TV:
-#     VideoFilters = getTVVideoFilters()
+    VideoFilters = getTVVideoFilters()
     LanguageFilters = getTVLanguages()
   elif category == CAT_MOVIES:
-#     VideoFilters = getMovieVideoFilters()
+    VideoFilters = getMovieVideoFilters()
     LanguageFilters = getMovieLanguages()
-#   if len(VideoFilters)>0: query_values += " " + VideoFilters
+  if len(VideoFilters)>0: query_values += " " + VideoFilters
   if len(LanguageFilters)>0: query_values += LanguageFilters
 
-  url = SEARCH_URL + "search=" + String.Quote(query_values,usePlus=False) + "&cat=" + category + "&maxage=" + period + "&" + sortFilter + "&searchin=name" + offset#&gibberish=" + str(time.time())
+  nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
+  nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
+  
+  url = SEARCH_URL + "search=" + String.Quote(query_values,usePlus=False) + "&catid=" + category + "&age=" + period + "&num=" + str(RESULTS_PER_PAGE) + "&searchin=name" + offset + "&username=" + nzbmatrixUsername + "&apikey=" + nzbmatrixAPIKey
 
   log(3, funcName + "URL: " + url)
   #testresp = HTTP.Request(url)
@@ -165,8 +108,14 @@ def getResults(category, query_values, period, page):
     headers = response.headers
     log(9, funcName, 'Response Headers:', headers)
     log(9, funcName, 'Response content:', response.content)
-    allResults = HTML.ElementFromString(response.content).xpath('//table[@class="nzbtable_table grid"]//tr[@class!="nzbtable_head"]')
-    #allResults = HTML.ElementFromURL(url, cacheTime=0).xpath('//table[@class="nzbtable grid"]//tr[@class!="nzbtable_head"]')
+    allResults = response.content.split("|")
+    # hack because the last entry is not a real item
+    t = allResults.pop()
+    if len(t) >= 10:
+      log(7, funcName, 'Did not remove last allResults entry:', t)
+      allResults.append(t)
+    else:
+      log(7, funcName, 'Removed blank entry from allResults')
   except Ex.URLError, e:
     log(1, funcName, 'Error querying:', e.reason)
     raise
@@ -178,6 +127,7 @@ def getResults(category, query_values, period, page):
   log(5,funcName,'Getting Dict:',nzbItemsDict)
   nzbItems = Dict[nzbItemsDict]
   log(8,funcName, 'Got Dict:',nzbItemsDict,nzbItems)
+#  log(7, funcName, 'allresults:', allResults)
   if len(allResults)>0:
     @parallelize
     def processAllNZBEntries():
@@ -188,97 +138,80 @@ def getResults(category, query_values, period, page):
         def processNZBEntry (entry=entry):
           entryCached = False
           thisEntry = article()
-          add_to_allEntries = True
-          thisEntry.nzbID = entry.xpath('td[2]/a[2]/@href')[0]
-
-          #At some point nzbmatrix started adding some more info on the URL.  This isolates just the ID part of the URL
-          if thisEntry.nzbID.count("&") > 0:
-            log(6, funcName, 'Found an & in the URL, trying to isolate the ID')
-            startOfID = thisEntry.nzbID.find("id=")
-
-            thisEntry.nzbID = thisEntry.nzbID[(startOfID+3):thisEntry.nzbID.find("&")]
-            log(6, funcName, 'id string:',thisEntry.nzbID, 'start of id position:',startOfID,'and id:',thisEntry.nzbID)
-          else:
-            log(6, funcName, 'No & found, assuming ID is the only thing in the nzb URL')
-            thisEntry.nzbID = thisEntry.nzbID[thisEntry.nzbID.find("=")+1:]
-
-          thisEntry.newzbinID = thisEntry.nzbID
-          if thisEntry.nzbID in nzbItems:
-            log(5, funcName, 'key found!')
-            thisEntry = nzbItems[thisEntry.nzbID]
-            entryCached = True
-
-          if not entryCached or len(thisEntry.title) <= 1: thisEntry.title = entry.xpath('td[3]//span["ctitle*"]//b')[0].text
-          if not entryCached or len(thisEntry.size) <= 1: thisEntry.size = entry.xpath('td[4]')[0].text
-          thisEntry.reportAge = "Report Age: " + entry.xpath('td[@class="age nzbtable_data"]')[0].text
+          outputs = entry.replace("; ", ";").split(";")
+          values = {}
+          for output in outputs:
+            if len(output) >= 3:
+              try:
+                nm, val = output.split(":", 1) #Split only once.  Needed due to time formattting in the field.
+                if nm.find('\n') == 0: nm = nm[1:]
+                values[nm] = val
+              except:
+                log(3, funcName, 'unable to read value:', output)
           
-          if period > 0:
-            #log(7, funcName, 'ReportAge:', entry.xpath('td[@class="age nzbtable_data"]')[0].text)
-            #add_to_allEntries = False
-            age_num, age_period = entry.xpath('td[@class="age nzbtable_data"]')[0].text.split(" ")
-            if age_period == "d":
-              #age_num = int(age_num)
-              if int(age_num) > int(period):
-                log(4, funcName, 'Skipping entry:', thisEntry.title, 'due to old age:', thisEntry.reportAge)
-                add_to_allEntries = False
+          log(7, funcName, 'Values:', values)
             
-          if add_to_allEntries:
+          try:
+            thisEntry.nzbID = values['NZBID']
+            thisEntry.newzbinID = thisEntry.nzbID
+            if thisEntry.nzbID in nzbItems:
+              log(5, funcName, 'key found!')
+              thisEntry = nzbItems[thisEntry.nzbID]
+              entryCached = True
+
+            if not entryCached or len(thisEntry.title) <= 1:
+              thisEntry.title = values['NZBNAME']
+              #cleanName = removeExtraWords(thisEntry.title)
+              #if cleanName:
+              #  thisEntry.title = cleanName
+            
+            if not entryCached or len(thisEntry.size) <= 1: thisEntry.size = values['SIZE']
+            thisEntry.reportAge = "Indexed: " + str(Datetime.ParseDate(values['INDEX_DATE']))
+            if not entryCached or (len(thisEntry.moreInfoURL) <=1 and len(thisEntry.moreInfo) <=1):
+              if category == CAT_TV: thisEntry.moreInfoURL = values['WEBLINK']
+              if category == CAT_MOVIES: thisEntry.moreInfo = getIMDBid(values['WEBLINK'])             
+
             if category == CAT_TV:
               # Why bother if it's already cached?
               if not entryCached and len(thisEntry.moreInfoURL) <=1:
+                log(5, funcName, 'finding TVRageURL for', thisEntry.title)
                 cleanName = removeExtraWords(thisEntry.title)
-                #This will try to find the TVRageURL
                 if len(cleanName) > 1:
-                  log(5, funcName, 'finding TVRageURL for', cleanName)
                   thisEntry.moreInfoURL = getTVRageURL(cleanName) #TVRageURL
               else:
                 log(4, funcName, 'Adding TV Show', thisEntry.title, 'from the cache')
 
             elif category == CAT_MOVIES:
-              if not entryCached or len(thisEntry.moreInfo) <= 1:
-                thisEntry.moreInfo = getIMDBid(thisEntry.nzbID)
-              else:
-                log(4, funcName, 'Adding Movie', thisEntry.title, 'from the cache')
+              if entryCached: log(4, funcName, 'Adding Movie', thisEntry.title, 'from the cache')
 
             log(5, funcName, 'moreInfoURL:',thisEntry.moreInfoURL, 'moreInfo:', thisEntry.moreInfo)
-          
-            #Now start retrieving the metadata
-            cache_time = 0
-            if category == CAT_MOVIES: cache_time = IMDB_CACHE_TIME
-            if category == CAT_TV: cache_time = TVRAGE_CACHE_TIME
-            #HTTP.PreCache(thisEntry.moreInfoURL, cacheTime=cache_time)
 
             # Get the download size in MB
             if not entryCached or thisEntry.sizeMB<=1:
-              if thisEntry.size.count("GB")>=1:
-                log(6, funcName, "GB found in", thisEntry.size, ' so multiplying by 1000')
-                thisEntry.sizeMB = float(thisEntry.size[:thisEntry.size.find("GB")])*1000
-              elif thisEntry.size.count("MB")>=1:
-                log(6, funcName, "MB found in", thisEntry.size, " so leaving it alone")
-                thisEntry.sizeMB = float(thisEntry.size[:thisEntry.size.find("MB")])
+              thisEntry.sizeMB = convert_bytes(thisEntry.size)
+              if len(thisEntry.sizeMB) > 1: thisEntry.size = thisEntry.sizeMB
               log(6, funcName, 'start size:', thisEntry.size, ', size in mb:', thisEntry.sizeMB)
             allEntries.append(thisEntry)
+          except:
+            log(1, funcName, 'Error:', sys.exc_info()[1], '\nValues:', entry)
 
   return allEntries
 
 ####################################################################################################
-def getIMDBid(nzbID):
-  funcName = "[nzbmatrix.getIMDBLink]"
+def getIMDBid(link):
+  funcName = "[nzbmatrix.getIMDBid]"
   imdbID = ''
 
-  detailsPageURL = "http://nzbmatrix.com/nzb-details.php?id=" + nzbID
   try:
-    imdbID = HTML.ElementFromURL(url=detailsPageURL, cacheTime=CACHE_TIME, timeout=HTTP_TIMEOUT).xpath('//ul[@id="nzbtabs"]//a[@target="_blank"]')[0]
-    imdbID = HTML.StringFromElement(imdbID)
-    log(9, funcName, 'Looking for imdbID in string:', imdbID)
-    tokens = imdbID.split("/")
+    log(9, funcName, 'Looking for imdbID in string:', link)
+    tokens = link.split("/")
     for val in tokens:
       #log(9, funcName, 'Analyzing this token for imdbID:', val)
       if re.match("tt[0-9]{4,8}", val):
         imdbID = str(val)
         break
   except:
-    pass
+    log(3, funcName, 'Error getting imdb id for', link, 'Error:', sys.exc_info()[1])
   log(4,funcName, 'imdbID:', imdbID)
   return imdbID
 ####################################################################################################

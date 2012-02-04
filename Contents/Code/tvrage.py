@@ -35,7 +35,7 @@ class TV_RAGE_METADATA(object):
     self.duration = 60
     self.episode_info_logged = False
     self.episode_info_cache = None
-    log(7, funcName, 'Showing metadata')
+    #log(7, funcName, 'Showing metadata')
     #log(7, funcName, 'Data:', self.metadata)
     if not self.valid_data:
       if self.url.lower().find("episodes") > -1:
@@ -163,7 +163,7 @@ class TV_RAGE_METADATA(object):
         epTitle = title_area.split(":")[1].strip()
       return epTitle
     except:
-      log(4, funcName, 'Error getting episode title:', sys.exc_info()[1])
+      log(4, funcName, 'Error getting episode title.  URL:', self.url, 'Error:', sys.exc_info()[1])
       return ''
       
   @property
@@ -174,7 +174,7 @@ class TV_RAGE_METADATA(object):
       log(8, funcName, 'Title:', title)
       return title
     except:
-      log(4, funcName, 'Error getting title:', sys.exc_info()[1])
+      log(4, funcName, 'Error getting title.  URL:', self.url, 'Error:', sys.exc_info()[1])
       return ""
 
   @property
@@ -214,13 +214,14 @@ class TV_RAGE_METADATA(object):
           if block_h1_text == the_text:
             if not self.episode_info_logged: log(9, funcName, 'Found', the_text)
             EpInfo = block.xpath('table//tr//td')[0]
+            log(9, funcName, 'EpInfo:', HTML.StringFromElement(EpInfo))
             break
           else:
             if not self.episode_info_logged: log(9, funcName, block_h1_text, 'does not equal', the_text)
         except:
-          if not self.episode_info_logged: log(9, funcName, 'Error examining block:', sys.exc_info()[1])
-      if not EpInfo:
-        if not self.episode_info_logged: log(9, funcName, 'No matching block found')
+          if not self.episode_info_logged: log(9, funcName, 'Error examining block.  URL:', self.url, 'Error:', sys.exc_info()[1])
+      if EpInfo is None:
+        if not self.episode_info_logged: log(9, funcName, 'No matching block found.  URL:', self.url)
         raise Exception("No Episode Info found")
       EpInfo = HTML.StringFromElement(EpInfo)
       if not self.episode_info_logged: log(9, funcName, 'Episode Info:', EpInfo)
@@ -229,7 +230,7 @@ class TV_RAGE_METADATA(object):
       self.episode_info_cache = EpInfo
       return EpInfo
     except:
-      log(4, funcName, 'Unable to get episode info')
+      log(4, funcName, 'Unable to get episode info.  URL:', self.url)
       raise
       return False
   

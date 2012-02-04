@@ -2,6 +2,7 @@ import re
 
 # Convenience function for getting an xpath with the Newzbin namespace
 ns_xpath = lambda el, xp: el.xpath(xp, namespaces={'nzb':'http://www.newzbin.com/DTD/2003/nzb'})
+#ns_xpath = lambda el, xp: el.xpath(xp, namespaces={'nzb':'http://www.newzbin2.es/DTD/2003/nzb'})
 
 # A list of the extensions we care about
 extensions = ['rar', 'par2', 'nfo', 'sfv', re.compile(r'r\d\d')]

@@ -82,7 +82,8 @@ def Start():
 
 ####################################################################################################
 import newzbin as nzbNewzbin
-import nzbmatrix as nzbNzbmatrix
+import nzbmatrix_api as nzbNzbmatrix
+#import nzbmatrix as nzbNzbmatrix
 import nzbindexnl as nzbNzbIndexNL
 def setNZBService(retType='bool'): #valid return types: bool and object
   """
@@ -110,8 +111,8 @@ def setNZBService(retType='bool'): #valid return types: bool and object
   nzbServiceInfo.nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
   log(6, funcName, 'nzbMatrix Username:', nzbServiceInfo.nzbmatrixUsername)
   nzbServiceInfo.nzbmatrixPassword = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword')
-  #log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
-  ##nzbServiceInfo.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
+  log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
+  nzbServiceInfo.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
 
 
   if serviceName=='Newzbin':
@@ -181,7 +182,7 @@ def MainMenu():
   # Set the right NZB servers to use
   log(5, funcName, 'NZBService:', Prefs['NZBService'])
   if (not app.loggedInNZBService) or app.nzb.name != Prefs['NZBService']:
-    log(3, funcName, 'Not logged into NZB Service, doing it now')
+    log(5, funcName, 'Not logged into NZB Service, doing it now.  app.loggedInNZBService:', app.loggedInNZBService, 'app.nzb.name:', app.nzb.name, 'Prefs[NZBService]:', Prefs['NZBService'])
     # try to log into the NZB Service...
     #global nzb
     app.nzb = setNZBService(retType='object')
@@ -258,6 +259,8 @@ def MainMenu():
   if len(app.queue.archivingItems) > 0:
     dir.Append(DirectoryItem(Route(viewArchivingItems), title=("View Archiving Items (" + str(len(app.queue.archivingItems)) + ")"), thumb=R('folder.png'), contextKey="a", contextArgs={}))
   if len(app.queue.archivedItems) > 0:
+    #ai_cm = ContextMenu(includeStandardItems=False)
+    #ai_cm.Append(Function(DirectoryItem(deleteAllArchived, title="Delete all Archived Items"))) 
     dir.Append(DirectoryItem(Route(manageCompleteQueue, filter="Archived"), title=("View Archived Items (" + str(len(app.queue.archivedItems)) + ")"), thumb=R('folder.png'), contextKey="a", contextArgs={}))
   log(7, funcName, 'Show Dir')
   return dir
@@ -469,7 +472,7 @@ def BrowseTV(sender='nothing'):
   # Empty context menu, since there aren't any useful contextual options right now.
   cm = ContextMenu(includeStandardItems=False)
   cm.Append(Function(DirectoryItem(StupidUselessFunction, title="No Options")))
-  dir = MediaContainer(viewGroup='Lists', contextMenu=cm, noCache=True, title2="TV", noHistory=False, replaceParent=False)
+  dir = MediaContainer(viewGroup='Lists', contextMenu=cm, title2="TV")
   
 
   if app.nzb.supportsGenres(): dir.Append(Function(DirectoryItem(BrowseTVGenres, title=("Browse Recent TV by Genre"), contextKey="a", contextArgs={}), filterBy="Video Genre"))
@@ -581,7 +584,8 @@ def BrowseTVFavorites(sender, days=TVSearchDays_Default, sort_by=None):
       log(4, funcName, 'Retrieved these favorites:',faves)
 
       #log(3, funcName + "query: " + query)
-      return SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
+      dir = SearchTV(sender=sender, value=faves, title2="Favorites", days=days, sort_by=sort_by)
+      return dir
     except:
       log(1, funcName, 'Error:', sys.exc_info()[1])
       return Message("No favorites", "You have not saved any favorite TV shows to search.\nAdd some favorites and then try again.")
@@ -631,7 +635,7 @@ def SearchTV(sender, value, title2, days=TVSearchDays_Default, maxResults=str(0)
     dir_replace_parent = True
   
   log(7, funcName, 'Creating dir')
-  dir = MediaContainer(viewGroup='Details', title2=thisTitle, noHistory=False, noCache=False, replaceParent=dir_replace_parent, contextMenu=cm)
+  dir = MediaContainer(viewGroup='Details', title2=thisTitle, replaceParent=dir_replace_parent, contextMenu=cm) #noHistory=False, noCache=False
   log(7, funcName, 'Getting the data')
   # Go get the data
   try:
@@ -1136,7 +1140,8 @@ def manageCompleteQueue(key=None, sender=None, media_type_filter=None, sort_by=N
           if cm_archive_delete: item_cm.Append(Function(DirectoryItem(archiveItem, title=L('ARCHIVE_DELETE_ITEM')), itemID=item.id, delete=True))
           if cm_remove: item_cm.Append(Function(DirectoryItem(context_menu_RemoveItem, title=L('REMOVE_DL'))))
           if cm_archiving: item_cm.Append(Function(DirectoryItem(StupidUselessFunction, title=L('ARCHIVING')), key='a'))
-          item_cm.Append(Function(DirectoryItem(SearchSubtitles, title='Download Subtitles (eng)'), itemID=item.id, file=item.fullPathToMediaFile, size=item.files[item.mediaFileName]))
+          SUBTITLES=False
+          if SUBTITLES: item_cm.Append(Function(DirectoryItem(SearchSubtitles, title='Download Subtitles (eng)'), itemID=item.id, file=item.fullPathToMediaFile, size=item.files[item.mediaFileName]))
 
           if Core.storage.file_exists(item.fullPathToMediaFile):
             dir.Append(VideoItem(Route(StartStreamAction, id=item.id), title=item.report.title, thumb=R('play_green.png'), subtitle=subtitle, summary=item.report.attributes_and_summary, contextMenu=item_cm, contextKey=item.id, air_release_date=get_metadata_date(item), contextArgs={}))

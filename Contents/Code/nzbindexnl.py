@@ -128,7 +128,7 @@ def getResults(category, query_values, period, page):
         def processNZBEntry (entry=entry):
           entryCached = False
           thisEntry = article()
-          log(8, funcName, 'string:', XML.StringFromElement(entry))
+          log(9, funcName, 'string:', XML.StringFromElement(entry))
           title = entry.xpath('title')[0].text
           link = entry.xpath('link')[0].text
           guid = entry.xpath('guid')[0].text
@@ -147,7 +147,8 @@ def getResults(category, query_values, period, page):
           
             if not entryCached or len(thisEntry.title) <= 1: thisEntry.title = entry.xpath('title')[0].text
             if not entryCached or len(thisEntry.size) <= 1: thisEntry.size = CDataHTML.xpath('//b')[0].text
-            if not entryCached or len(thisEntry.reportAge) <= 1: thisEntry.reportAge = "Report Age: " + entry.xpath('pubDate')[0].text
+            thisEntry.reportAge = "Report Age: " + entry.xpath('pubDate')[0].text
+            
 
             if category == CAT_TV:
               # Why bother if it's already cached?

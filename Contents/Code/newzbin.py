@@ -2,10 +2,10 @@ from common import *
 import sys
 
 name = 'Newzbin'
-SEARCH_URL  = "http://www.newzbin.com/search?fpn=p"
+SEARCH_URL  = "https://www.newzbin.com/search?fpn=p"
 RESULTS_PER_PAGE = 100
 NEWZBIN_NAMESPACE = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
-
+#NEWZBIN_NAMESPACE = {"report":"http://www.newzbin2.es/DTD/2007/feeds/report/"}
 CAT_TV = "8"
 CAT_MOVIES = "6"
 
@@ -34,7 +34,7 @@ def performLogin(nzbService, forceRetry=False):
     #x = HTTP.Request("http://www.newzbin.com/", encoding="latin1")
     
     try:
-      x = HTTP.Request("http://www.newzbin.com/search?fpn=p", values, encoding="latin1")
+      x = HTTP.Request("https://www.newzbin.com/search?fpn=p", values, encoding="latin1")
       if x and (x.content.count("Log Out") > 0 or x.content.count("days left") > 0):
         log(2,funcName, "Logged into Newzbin")
         return True
