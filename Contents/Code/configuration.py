@@ -373,11 +373,15 @@ def manageNZBSites(sender=None):
 	###########################
 	# NZBMatrix Configs
 	if Prefs['NZBService'] == 'NZBMatrix' or True:
+		show_get_api_key = False
 		dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Username: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')), prompt=("Set NZBMatrix Username"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixUsername'))
 		if len(getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword'))>=1:
 			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: ******"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
+			show_get_api_key = True
 		else:
 			dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix Password: <Not Set>"), prompt=("Set NZBMatrix Password"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixPassword'))
+		if show_get_api_key:
+			dir.Append(DirectoryItem(Route(getNZBMatrixAPIKey), title="Get NZB Matrix API Key", contextKey='a', contextArgs={}))
 		dir.Append(Function(InputDirectoryItem(setDictField, title=("NZBMatrix API Key: " + getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')), prompt=L("Set NZBMatrix API Key"), contextKey="a", contextArgs={}), theDict=nzbConfigDict, key='nzbMatrixAPIKey'))			
 	
 	##########################
@@ -391,6 +395,14 @@ def manageNZBSites(sender=None):
 	
 	return dir
 
+######################################################################################
+@route(routeBase + 'getNZBMatrixAPIKey')
+def getNZBMatrixAPIKey(sender=None):
+  funcName = '[configuration.getNZBMatrixAPIKey]'
+  import nzbmatrix as nzbmatrix_web
+  api_key = nzbmatrix_web.getAPIKey()
+  setDictField(sender=None, query=api_key, theDict=nzbConfigDict, key='nzbMatrixAPIKey')
+  return MessageContainer('NZBMatrix API Key', 'Setting your NZBMatrix API Key to:\n' + api_key)
 ######################################################################################
 @route(routeBase + 'configure')
 def configure(sender):

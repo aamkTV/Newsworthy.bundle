@@ -2,10 +2,13 @@ from common import *
 import sys
 
 name = 'Newzbin'
-SEARCH_URL  = "https://www.newzbin.com/search?fpn=p"
+SITE_URL = 'https://www.newzbin2.es'
+SEARCH_URL  = SITE_URL + "/search?fpn=p"
+LOGIN_URL = SEARCH_URL
 RESULTS_PER_PAGE = 100
-NEWZBIN_NAMESPACE = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
+#NEWZBIN_NAMESPACE = {"report":"http://www.newzbin.com/DTD/2007/feeds/report/"}
 #NEWZBIN_NAMESPACE = {"report":"http://www.newzbin2.es/DTD/2007/feeds/report/"}
+NEWZBIN_NAMESPACE = {"report": "http://www.newzbin2.es/DTD/2007/feeds/report/"}
 CAT_TV = "8"
 CAT_MOVIES = "6"
 
@@ -34,7 +37,7 @@ def performLogin(nzbService, forceRetry=False):
     #x = HTTP.Request("http://www.newzbin.com/", encoding="latin1")
     
     try:
-      x = HTTP.Request("https://www.newzbin.com/search?fpn=p", values, encoding="latin1")
+      x = HTTP.Request(SEARCH_URL, values, encoding="latin1")
       if x and (x.content.count("Log Out") > 0 or x.content.count("days left") > 0):
         log(2,funcName, "Logged into Newzbin")
         return True
@@ -203,14 +206,14 @@ def search(category, query_list, period, page=0):
 ####################################################################################################
 def downloadNZBUrl(nzbID):
   funcName = '[newzbin.downloadNZBUrl]'
-  downloadURL = "http://www.newzbin.com/browse/post/%s/nzb" % nzbID
+  downloadURL = SITE_URL + "/browse/post/%s/nzb" % nzbID
   log(4, funcName, 'NZB Download URL:', downloadURL)
   return downloadURL
 
 ####################################################################################################
 def getComments(nzbID):
   funcName = '[newzbin.getComments]'
-  url = "http://www.newzbin.com/browse/post/%s" % nzbID
+  url = SITE_URL + "/browse/post/%s" % nzbID
   try:
     comments_el = XML.ElementFromURL(url, cacheTime=60).xpath('//div[@id="CommentsPH"]//div[@class="content nbcode"]')
     return comments_el
@@ -220,7 +223,7 @@ def getComments(nzbID):
 ####################################################################################################
 def getArticleSummary(newzbinID):
   #global articleDict
-  postHTML = HTML.ElementFromURL("http://www.newzbin.com/browse/post/" + newzbinID, errors="ignore")
+  postHTML = HTML.ElementFromURL(SITE_URL + "/browse/post/" + newzbinID, errors="ignore")
   postSummary = ''
   includeSummaryDetails = True
   warningXML = postHTML.xpath('//div[@class="warning"]')

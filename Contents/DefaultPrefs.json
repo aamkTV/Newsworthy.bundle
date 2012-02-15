@@ -62,7 +62,7 @@
 		"id":		"NZBService",
 		"type":		"enum",
 		"values":	["NZBMatrix","Newzbin", "NZBIndex.nl"],
-		"default":	"Newzbin",
+		"default":	"NZBIndex.nl",
 		"label":	"Which NZB service do you use?"
 	},
 	{

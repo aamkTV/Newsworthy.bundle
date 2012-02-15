@@ -6,6 +6,8 @@ name = 'NZBMatrix'
 SEARCH_URL = 'http://nzbmatrix.com/nzb-search.php?'
 LOGIN_URL = 'http://nzbmatrix.com/account-login.php'
 COOKIE_URL = 'http://nzbmatrix.com'
+ACCOUNT_URL = 'http://nzbmatrix.com/account.php'
+API_URL = ACCOUNT_URL + '?action=api'
 #NZBM_ROOT = 'http://nzbmatrix.com/nzb.php?category=Movies&sort=1&type=asc&page=0'
 #NZBM_BASE = 'http://nzbmatrix.com'
 #NZBM_ERRORS = {'error:invalid_login':'There is a problem with the username you have provided.', 'error:invalid_api':'There is a problem with the API Key you have provided.', 'error:invalid_nzbid':'There is a problem with the NZBid supplied.', 'error:please_wait_':'Please wait before retry.', 'error:vip_only':'You need to be VIP or higher to access.', 'error:disabled_account':'User Account Disabled.', 'error:no_nzb_found':'No NZB found.'}
@@ -29,10 +31,23 @@ MOVIE_SEARCH = True
 LoggedIn = False
 cookie = None
 
+
+####################################################################################################
+def getNZBInfo():
+  funcName = '[%s.getNZBInfo]' % name
+  nzbService = NZBService()
+  log(6, funcName, 'Getting nzbMatrix Username')
+  nzbService.nzbmatrixUsername = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixUsername')
+  log(6, funcName, 'nzbMatrix Username:', nzbServiceInfo.nzbmatrixUsername)
+  nzbService.nzbmatrixPassword = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixPassword')
+  log(8, funcName, 'nzbMatrix Password:', nzbServiceInfo.nzbmatrixPassword)
+  nzbService.nzbmatrixAPIKey = getConfigValue(theDict=nzbConfigDict, key='nzbMatrixAPIKey')
+  return nzbService
+  
 ####################################################################################################
 def performLogin(nzbService, forceRetry=False):
   funcName = '[nzbmatrix.performLogin]'
-
+  
   if nzbService.nzbmatrixUsername != "": # and nzbService.nzbmatrixPassword != "":
     USERNAME = nzbService.nzbmatrixUsername
     PASSWORD = nzbService.nzbmatrixPassword
@@ -360,6 +375,31 @@ def concatSearchList(thelist):
 
   return query
 
+####################################################################################################
+def getAPIKey():
+  funcName = "[" + name + ".getAPIKey]"
+  
+  try:
+    nzbInfo = getNZBInfo()
+    LoggedIn = performLogin(nzbInfo)
+    if LoggedIn:
+      try:
+        rsp = HTTP.Request(API_URL)
+        log(9, funcName, 'Response:', rsp.content)
+        rspXML = HTML.ElementFromString(rsp.content)
+        log(9, funcName, 'fieldset:', rspXML.xpath('//fieldset')[0].text_content())
+        api_key = rspXML.xpath('//fieldset//font')[0].text
+        log(9, funcName, 'api_key:', api_key)
+        return api_key
+      except:
+        log(1, funcName, 'Error getting api key:', sys.exc_info()[1])
+        return False
+    else:
+      log(3, funcName, 'Not logged in')
+      return False
+  except:
+    log(1, funcName, 'Error before trying to get api key:', sys.exc_info()[1])
+    return False
 ####################################################################################################
 def getTVVideoFilters():
   funcName = "[getTVVideoFilters]"

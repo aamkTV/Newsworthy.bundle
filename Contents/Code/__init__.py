@@ -463,7 +463,7 @@ def BrowseMovies(sender='nothing'):
   else:
     dir.Append(Function(DirectoryItem(SearchMovies, title=("Browse Recent Movies"), contextKey="a", contextArgs={}), value="", title2="All Recent Movies", days=MovieSearchDays_Default, maxResults=str(app.nzb.RESULTS_PER_PAGE)))
 
-  dir.Append(Function(InputDirectoryItem(Search, title=("Search Movies"), prompt=("Search Movies"), thumb=R('search.png'), contextKey="a", contextArgs={}), category="6"))
+  dir.Append(Function(InputDirectoryItem(Search, title=("Search Movies"), prompt=("Search Movies"), thumb=R('search.png'), contextKey="a", contextArgs={}), category=app.nzb.CAT_MOVIES))
   return dir
 ####################################################################################################
 def BrowseTV(sender='nothing'):

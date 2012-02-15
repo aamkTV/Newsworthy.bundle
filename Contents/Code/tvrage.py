@@ -155,16 +155,31 @@ class TV_RAGE_METADATA(object):
       epTitle = ''
       try:
         desc = self.pageDataXML.xpath("//meta[@name='description']")[0].get("content").split("@")[0].strip().replace(" Episode","")
+        #desc = self.pageDataXML.xpath("//meta[@name='description']")[0].text_content() #get("content")
+        log(9, 'desc 1:', desc)
         desc = desc.split("|")[0].strip()
+        log(9, 'desc 2:', desc)
         epTitle = desc.split("-")[1].strip().replace("\"", "")
         if not epTitle: raise Exception("Episode Title not available in the meta description")
       except:
-        desc = self.pageDataXML.xpath("//div[@class='grid_7_5 box margin_top_bottom left']//font[@size='3']")[0].text
-        epTitle = title_area.split(":")[1].strip()
-      return epTitle
+        log(4, funcName, 'Error getting title:', sys.exc_info()[1], '. Trying the title area')
+        blocks = self.pageDataXML.xpath('//div[@class="grid_7_5 box margin_top_bottom left"]')
+        for block in blocks:
+          desc = block.xpath("h1")[0].text_content()
+          try:
+            log(9, funcName, 'examing for title:', desc)
+            epTitle = desc.split(":")[1].strip()
+            log(9, funcName, 'Found title:', epTitle)
+            break
+          except:
+            log(9, funcName, desc, 'is not splittable by a :')
+        #log(9, funcName, 'Found this in title area:', desc)
+        #epTitle = desc.split(":")[1].strip()
+      #return epTitle
     except:
       log(4, funcName, 'Error getting episode title.  URL:', self.url, 'Error:', sys.exc_info()[1])
       return ''
+    return epTitle
       
   @property
   def title(self):
@@ -214,7 +229,7 @@ class TV_RAGE_METADATA(object):
           if block_h1_text == the_text:
             if not self.episode_info_logged: log(9, funcName, 'Found', the_text)
             EpInfo = block.xpath('table//tr//td')[0]
-            log(9, funcName, 'EpInfo:', HTML.StringFromElement(EpInfo))
+            if not self.episode_info_logged: log(9, funcName, 'EpInfo:', HTML.StringFromElement(EpInfo))
             break
           else:
             if not self.episode_info_logged: log(9, funcName, block_h1_text, 'does not equal', the_text)
